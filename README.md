@@ -60,12 +60,32 @@ copy .env.example .env
 ## Docker
 
 ```powershell
-docker build -t exhibition-form .
-docker run -d --name exhibition-form -p 8000:8000 -v exhibition_data:/app/data `
-  -e EXPORT_TOKEN=ВАШ_ТОКЕН -e CONSENT_OPERATOR_NAME="ИП Иванов И.И." exhibition-form
+copy .env.example .env
+#    впиши в .env свой EXPORT_TOKEN (обязательно) и реквизиты оператора ПДн
+
+docker volume create exhibition_data   # один раз: том с заявками
+docker compose up -d --build
 ```
 
-Файл базы лежит в томе `exhibition_data` — контейнер можно пересоздавать, заявки останутся.
+Дальше — `docker compose logs -f`, `docker compose restart`, `docker compose down`
+(том и заявки при этом остаются).
+
+Как это устроено и почему так:
+
+- **Секреты только в `.env`**, а `docker-compose.yml` их не содержит и подключает файл
+  через `env_file`. Поэтому compose-файл можно спокойно коммитить, а токен админки и
+  секрет вебхука в git не попадут.
+- **База — на томе `exhibition_data`, подключённом в `/app/data`** (именно `/app/data`:
+  приложение по умолчанию пишет в `data/` рядом с собой, и без монтирования заявки жили
+  бы только внутри контейнера). Том объявлен как `external`, поэтому Compose не считает его
+  своим и не удаляет при `down`.
+- **`restart: unless-stopped`** — после перезагрузки Windows или перезапуска Docker анкета
+  поднимается сама.
+
+Если хотите запустить контейнер вручную, минуя compose, монтирование всё равно должно быть
+`-v exhibition_data:/app/data`, а все переменные передаваться флагами `-e`: внутрь образа
+`.env` не копируется (его исключает `.dockerignore`), и `load_dotenv()` в контейнере файла
+не найдёт.
 
 ## Настройки (.env)
 
@@ -108,7 +128,9 @@ docker run -d --name exhibition-form -p 8000:8000 -v exhibition_data:/app/data `
    (ID таблицы из адреса `…/d/<ID>/edit`).
 4. «Развернуть» → «Новое развёртывание» → тип «Веб-приложение» → «Выполнять от моего
    имени» → «Доступ: для всех».
-5. Скопируй адрес `…/exec` в `.env` как `GOOGLE_SHEET_WEBHOOK_URL` и перезапусти приложение.
+5. Скопируй адрес `…/exec` в `.env` как `GOOGLE_SHEET_WEBHOOK_URL`, секрет — как
+   `GOOGLE_SHEET_SECRET`, и перезапусти приложение (`docker compose up -d` или перезапуск
+   локального процесса).
 
 Пустая таблица заполнит шапку сама при первой заявке. Порядок колонок совпадает с
 выгрузкой Excel; сверить его можно командой:
@@ -139,6 +161,8 @@ handlers/admin.py      админка и выгрузка
 templates/             form.html, admin.html
 static/                css и js формы
 tools/print_headers.py печать колонок выгрузки
+docker-compose.yml    запуск в контейнере: образ, порт, том с базой, env_file
+docs/google-apps-script.gs скрипт для Google Sheets
 tests/                 87 тестов: поля, API, доступ, выгрузка, Google, языки
 ```
 

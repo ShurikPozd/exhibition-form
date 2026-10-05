@@ -1,0 +1,41 @@
+# Запуск анкеты: docker compose up -d --build
+#
+# Секретов в этом файле нет намеренно: все значения, включая EXPORT_TOKEN и
+# GOOGLE_SHEET_SECRET, лежат в .env, который подключается через env_file и не
+# попадает в git. Поэтому сам docker-compose.yml можно коммитить.
+
+services:
+  form:
+    build: .
+    image: exhibition-form:test
+    container_name: exhibition-form
+    # Анкета должна пережить перезагрузку Windows и падение Docker: на выставке
+    # некому вручную её поднимать.
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Именно /app/data: по умолчанию приложение пишет в data/ рядом с собой,
+      # и без монтирования заявки жили бы только внутри контейнера.
+      - exhibition_data:/app/data
+    env_file:
+      - .env
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  exhibition_data:
+    # Том создан заранее (docker run -v exhibition_data:/app/data) и принадлежит
+    # не Compose, а Docker: помечаем его внешним, иначе Compose ругается, что том
+    # «не создан им», и при docker compose down начнёт считать своим.
+    # Создать с нуля: docker volume create exhibition_data
+    name: exhibition_data
+    external: true
