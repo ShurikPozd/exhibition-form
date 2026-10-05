@@ -1,4 +1,4 @@
-"""Админка: список заявок, выгрузка в Excel/CSV, повтор синхронизации с Google.
+"""Админка: список заявок и выгрузка в Excel/CSV.
 
 Все ручки закрыты EXPORT_TOKEN (utils/security.py, режим fail-closed): заявки содержат
 персональные данные, поэтому /admin не должен быть доступен «кто угадает адрес».
@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from database import get_session
-from services import exporters, google_sheet
+from services import exporters
 from services import submissions as submissions_service
 from templating import templates
 from utils.security import verify_export_token
@@ -46,8 +46,6 @@ def admin_page(
         "headers": exporters.headers(),
         "rows": exporters.rows(items),
         "total": submissions_service.count_submissions(session),
-        "unsynced": len(submissions_service.unsynced_submissions(session)),
-        "google_enabled": google_sheet.is_enabled(),
         "generated_at": datetime.now().strftime(exporters.DATE_FORMAT),
     }
     return templates.TemplateResponse(
@@ -92,31 +90,4 @@ def export_csv(session: Session = Depends(get_session)) -> Response:
                 f'attachment; filename="{exporters.download_name("csv")}"'
             )
         },
-    )
-
-
-@router.post("/api/google/sync")
-def sync_all(session: Session = Depends(get_session)) -> JSONResponse:
-    """Повторяет отправку в Google-таблицу для всех неотправленных заявок."""
-    result = google_sheet.retry_unsynced(session)
-    logger.info("Повторная синхронизация: %s", result)
-    return JSONResponse(result)
-
-
-@router.post("/api/google/sync/{submission_id}")
-def sync_one(
-    submission_id: int, session: Session = Depends(get_session)
-) -> JSONResponse:
-    """Повторяет отправку одной заявки по её id."""
-    submission = submissions_service.get_submission(session, submission_id)
-    if submission is None:
-        return JSONResponse({"detail": "заявка не найдена"}, status_code=404)
-
-    ok = google_sheet.sync_submission(session, submission, attempt="повтор")
-    return JSONResponse(
-        {
-            "id": submission_id,
-            "google_synced": ok,
-            "google_error": submission.google_error,
-        }
     )

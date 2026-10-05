@@ -1,8 +1,8 @@
 # Запуск анкеты: docker compose up -d --build
 #
-# Секретов в этом файле нет намеренно: все значения, включая EXPORT_TOKEN и
-# GOOGLE_SHEET_SECRET, лежат в .env, который подключается через env_file и не
-# попадает в git. Поэтому сам docker-compose.yml можно коммитить.
+# Секретов в этом файле нет намеренно: все значения, включая EXPORT_TOKEN, лежат
+# в .env, который подключается через env_file и не попадает в git. Поэтому сам
+# docker-compose.yml можно коммитить.
 
 services:
   form:

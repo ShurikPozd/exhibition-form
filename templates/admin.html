@@ -23,17 +23,13 @@
     <header class="sheet__head">
       <h1 class="sheet__title">Заявки с выставки</h1>
       <p class="sheet__lead">
-        Всего: {{ total }} · не отправлено в Google: {{ unsynced }} ·
-        синхронизация {{ "включена" if google_enabled else "выключена (нет GOOGLE_SHEET_WEBHOOK_URL)" }} ·
-        обновлено: {{ generated_at }}
+        Всего: {{ total }} · обновлено: {{ generated_at }}
       </p>
     </header>
 
     <div class="admin__bar">
       <a class="btn" id="dl-xlsx" href="/api/submissions.xlsx">Скачать Excel</a>
       <a class="btn btn--ghost" id="dl-csv" href="/api/submissions.csv">Скачать CSV</a>
-      <button class="btn btn--ghost" id="sync-all" type="button">Повторить отправку в Google</button>
-      <p class="status" id="admin-status" role="status" aria-live="polite"></p>
     </div>
 
     {% if rows %}
@@ -65,7 +61,6 @@
       "use strict";
 
       var token = new URLSearchParams(window.location.search).get("token") || "";
-      var status = document.getElementById("admin-status");
 
       if (token) {
         ["dl-xlsx", "dl-csv"].forEach(function (id) {
@@ -73,37 +68,6 @@
           link.href = link.getAttribute("href") + "?token=" + encodeURIComponent(token);
         });
       }
-
-      function setStatus(text, kind) {
-        status.textContent = text;
-        status.className = kind ? "status status--" + kind : "status";
-      }
-
-      document.getElementById("sync-all").addEventListener("click", function () {
-        setStatus("Отправляем…");
-        fetch("/api/google/sync", {
-          method: "POST",
-          headers: token ? { "X-Export-Token": token } : {},
-        })
-          .then(function (response) {
-            return response.json().then(function (data) {
-              return { ok: response.ok, data: data };
-            });
-          })
-          .then(function (result) {
-            if (!result.ok) {
-              setStatus(result.data.detail || "Не удалось отправить.", "error");
-              return;
-            }
-            setStatus(
-              "Отправлено: " + result.data.sent + ", с ошибкой: " + result.data.failed,
-              "ok"
-            );
-          })
-          .catch(function () {
-            setStatus("Нет связи с сервером.", "error");
-          });
-      });
     })();
   </script>
 </body>

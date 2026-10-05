@@ -16,7 +16,6 @@ from utils.masking import (
     mask_email,
     mask_phone,
     mask_query_token,
-    mask_text,
 )
 
 SECRET = "rKOaFV782Znk_T0IhLyt8mhbjxC70EDYHnj-z5aG6RI"
@@ -47,13 +46,6 @@ def test_mask_email_keeps_domain():
     """Почта узнаётся по домену и последним буквам имени."""
     assert mask_email("ivan@example.com") == "**an@example.com"
     assert mask_email("мусор") == "***"
-
-
-def test_mask_text():
-    """Произвольная строка прячет середину."""
-    assert mask_text("") == ""
-    assert mask_text("ab") == "**"
-    assert mask_text("Пётр") == "П**р"
 
 
 # --- Новое: токен в access-логе ---

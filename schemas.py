@@ -117,7 +117,6 @@ class SubmissionOut(BaseModel):
 
     id: int
     created_at: datetime
-    google_synced: bool
 
 
 __all__ = [

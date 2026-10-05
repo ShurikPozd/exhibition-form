@@ -36,8 +36,3 @@ class Submission(Base):
 
     consent_version: Mapped[str] = mapped_column(String(32), default="")
     user_agent: Mapped[str] = mapped_column(String(300), default="")
-
-    google_synced_at: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True, default=None
-    )
-    google_error: Mapped[str] = mapped_column(String(300), default="")

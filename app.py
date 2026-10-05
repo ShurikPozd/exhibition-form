@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Анкета выставки",
-    description="Сбор заявок с планшета, выгрузка в Excel/CSV и синхронизация с Google Sheets",
+    description="Сбор заявок с планшета и выгрузка в Excel/CSV",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/api/docs",

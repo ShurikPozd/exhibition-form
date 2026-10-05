@@ -6,13 +6,12 @@
 """
 
 import logging
-from datetime import datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from config.consent_text import CONSENT_VERSION
-from models import Submission, utcnow
+from models import Submission
 from schemas import SubmissionIn
 from utils.masking import mask_email, mask_phone
 
@@ -83,60 +82,20 @@ def create_submission(
     return saved
 
 
-def get_submission(session: Session, submission_id: int) -> Submission | None:
-    """Возвращает заявку по id или None."""
-    return session.get(Submission, submission_id)
+def list_submissions(session: Session, *, limit: int = LIST_LIMIT) -> list[Submission]:
+    """Возвращает заявки, свежие сверху.
 
+    Args:
+        session: сессия SQLAlchemy.
+        limit: сколько записей отдать, свежие приходят первыми.
 
-def list_submissions(
-    session: Session,
-    *,
-    query: str = "",
-    date_from: datetime | None = None,
-    date_to: datetime | None = None,
-    limit: int = LIST_LIMIT,
-) -> list[Submission]:
-    """Возвращает заявки, свежие сверху, с фильтрами по поиску и дате."""
+    Returns:
+        list[Submission]: заявки по убыванию id.
+    """
     stmt = select(Submission).order_by(Submission.id.desc()).limit(limit)
-
-    pattern = f"%{(query or '').strip()}%"
-    if pattern != "%%":
-        stmt = stmt.where(
-            or_(
-                Submission.name.ilike(pattern),
-                Submission.company.ilike(pattern),
-                Submission.phone.ilike(pattern),
-                Submission.email.ilike(pattern),
-            )
-        )
-
-    if date_from is not None:
-        stmt = stmt.where(Submission.created_at >= date_from)
-    if date_to is not None:
-        stmt = stmt.where(Submission.created_at <= date_to)
-
     return list(session.scalars(stmt))
 
 
 def count_submissions(session: Session) -> int:
     """Возвращает общее количество заявок."""
     return int(session.scalar(select(func.count()).select_from(Submission)) or 0)
-
-
-def unsynced_submissions(session: Session) -> list[Submission]:
-    """Возвращает заявки, которые ещё не уехали в Google Sheets."""
-    stmt = (
-        select(Submission)
-        .where(Submission.google_synced_at.is_(None))
-        .order_by(Submission.id.asc())
-    )
-    return list(session.scalars(stmt))
-
-
-def mark_google_result(
-    session: Session, submission: Submission, *, ok: bool, error: str = ""
-) -> None:
-    """Фиксирует результат синхронизации заявки с Google Sheets."""
-    submission.google_synced_at = utcnow() if ok else None
-    submission.google_error = "" if ok else error[:ERROR_MAX_LENGTH]
-    session.commit()

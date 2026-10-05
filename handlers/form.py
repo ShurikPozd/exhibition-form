@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from database import get_session
 from config.i18n import normalize_lang
 from schemas import SubmissionIn, SubmissionOut
-from services import google_sheet
 from services import submissions
 from services.form_view import build_form_context
 from templating import templates
@@ -53,10 +52,5 @@ def submit_submission(
     submission = submissions.create_submission(
         session, data, user_agent=request.headers.get("user-agent", "")
     )
-    google_sheet.sync_submission(session, submission)
 
-    return SubmissionOut(
-        id=submission.id,
-        created_at=submission.created_at,
-        google_synced=submission.google_synced_at is not None,
-    )
+    return SubmissionOut(id=submission.id, created_at=submission.created_at)

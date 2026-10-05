@@ -14,7 +14,6 @@ TEST_TOKEN = "test-export-token"
 _TMP_DIR = Path(tempfile.mkdtemp(prefix="exhibition-form-tests-"))
 os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DIR / 'test_submissions.db'}"
 os.environ["EXPORT_TOKEN"] = TEST_TOKEN
-os.environ["GOOGLE_SYNC_ENABLED"] = "false"
 os.environ["LOG_LEVEL"] = "WARNING"
 
 import pytest  # noqa: E402  (импорт после подмены переменных окружения)

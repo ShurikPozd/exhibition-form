@@ -68,9 +68,3 @@ def test_csv_requires_token(client):
         ).status_code
         == 200
     )
-
-
-def test_google_sync_endpoints_require_token(client):
-    """Повторная синхронизация с Google доступна только с токеном."""
-    assert client.post("/api/google/sync").status_code == 403
-    assert client.post("/api/google/sync/1").status_code == 403

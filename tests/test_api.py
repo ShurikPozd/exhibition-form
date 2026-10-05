@@ -52,7 +52,6 @@ def test_submission_is_saved_and_read_back(client, session, valid_payload):
     body = response.json()
     assert body["id"] > 0
     assert "created_at" in body
-    assert body["google_synced"] is False
 
     saved = session.get(Submission, body["id"])
     assert saved is not None
@@ -70,7 +69,7 @@ def test_response_has_no_personal_data(client, valid_payload):
     """В ответе нет персональных данных — только подтверждение."""
     response = client.post(ENDPOINT, json=valid_payload)
     body = response.json()
-    assert set(body) == {"id", "created_at", "google_synced"}
+    assert set(body) == {"id", "created_at"}
     assert "Иван Петров" not in response.text
 
 
