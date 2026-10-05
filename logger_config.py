@@ -3,6 +3,9 @@
 Создаёт папку logs/, настраивает корневой логгер. Файловый handler — RotatingFileHandler
 (10 МБ × 5). StreamHandler добавляется только если доступен sys.stderr, чтобы приложение
 не падало в окружениях без консоли.
+
+Здесь же ставится маскирование токена в access-логе uvicorn: этот логгер настраивается
+самим uvicorn, но фильтр добавляется позже и переживает его конфигурацию.
 """
 
 import logging
@@ -11,6 +14,7 @@ import sys
 from pathlib import Path
 
 from settings import LOG_LEVEL
+from utils.masking import install_access_log_mask
 
 LOG_DIR = Path(__file__).parent / "logs"
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -49,4 +53,5 @@ def setup_root_logger(level: str = LOG_LEVEL) -> logging.Logger:
 
 
 setup_root_logger()
+install_access_log_mask()
 logging.getLogger(__name__).debug("Система логирования инициализирована")
