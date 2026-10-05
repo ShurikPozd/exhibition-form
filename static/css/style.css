@@ -1,0 +1,348 @@
+/* Оформление анкеты: планшет iPad — основной сценарий, печать в A5 — запасной.
+   Ввод с крупными контролами: на iPad попадать пальцем нужно без промахов. */
+
+:root {
+  --bg: #eceff3;
+  --sheet: #ffffff;
+  --ink: #1c1f23;
+  --ink-soft: #5b6572;
+  --line: #d9dee5;
+  --accent: #17694a;
+  --accent-soft: #e8f3ee;
+  --danger: #b3261e;
+  --radius: 10px;
+  --tap: 52px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 20px 16px 56px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.sheet {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 28px 32px 36px;
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.08);
+}
+
+.sheet__head {
+  padding-bottom: 18px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.sheet__title {
+  margin: 0 0 6px;
+  font-size: 27px;
+  line-height: 1.2;
+}
+
+.sheet__lead {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+
+/* Блоки вопросов */
+.block {
+  margin: 0;
+  padding: 20px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.block__legend {
+  display: block;
+  width: 100%;
+  padding: 0;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.block__num {
+  color: var(--accent);
+}
+
+.block__hint {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+.req {
+  color: var(--danger);
+}
+
+/* Поля ввода */
+.input {
+  width: 100%;
+  min-height: var(--tap);
+  margin-top: 10px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 18px;
+  color: var(--ink);
+  background: #fff;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  /* iPad: без запрета выделения текста поле неудобно править */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.input:focus {
+  border-color: var(--accent);
+  outline: 3px solid var(--accent-soft);
+}
+
+.input--area {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.input::placeholder {
+  color: #98a2ae;
+}
+
+.input.is-invalid {
+  border-color: var(--danger);
+  background: #fdf3f2;
+}
+
+/* Чекбоксы */
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 12px;
+}
+
+.checks--two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 24px;
+}
+
+.checks__col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 2px 0;
+}
+
+.check__input {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  background: #fff;
+  border: 2px solid #7d8794;
+  border-radius: 8px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.check__input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 4px #fff;
+}
+
+.check__label {
+  flex: 1 1 auto;
+  font-size: 17px;
+}
+
+.check__other {
+  flex: 1 1 100%;
+  width: 100%;
+  min-height: 46px;
+  margin: 2px 0 6px 42px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 17px;
+  background: #fff;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.check__other:focus {
+  border-color: var(--accent);
+  outline: 3px solid var(--accent-soft);
+}
+
+.check--consent {
+  align-items: flex-start;
+}
+
+.check__label--consent {
+  font-size: 17px;
+}
+
+.consent {
+  margin: 8px 0 0 42px;
+  font-size: 15px;
+}
+
+.consent__summary {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.consent__text {
+  margin: 10px 0 6px;
+  padding: 12px;
+  color: var(--ink-soft);
+  background: #f7f9fb;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  white-space: pre-line;
+}
+
+.consent__version {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+/* Кнопка и статус */
+.submit {
+  padding-top: 24px;
+  text-align: center;
+}
+
+.btn {
+  min-height: 58px;
+  padding: 14px 34px;
+  font-family: inherit;
+  font-size: 19px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 12px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn[disabled] {
+  opacity: 0.55;
+}
+
+.btn--ghost {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.status {
+  min-height: 24px;
+  margin: 14px 0 0;
+  font-size: 16px;
+  color: var(--ink-soft);
+}
+
+.status--error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.status--ok {
+  color: var(--accent);
+}
+
+/* Экран «Спасибо» */
+.done {
+  padding: 40px 0 20px;
+  text-align: center;
+}
+
+.done__title {
+  margin: 0 0 10px;
+  font-size: 30px;
+  color: var(--accent);
+}
+
+.done__text {
+  margin: 0 0 6px;
+  font-size: 19px;
+}
+
+.done__id {
+  margin: 0 0 26px;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+
+/* Планшет в горизонтали: поля в две колонки становятся шире */
+@media (min-width: 900px) {
+  .sheet {
+    padding: 34px 40px 42px;
+  }
+}
+
+/* Печать: пустой бланк анкеты на A5 */
+@media print {
+  @page {
+    size: A5;
+    margin: 10mm;
+  }
+
+  body {
+    padding: 0;
+    background: #fff;
+    font-size: 12pt;
+  }
+
+  .sheet {
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .input {
+    min-height: 0;
+    border-width: 1px;
+  }
+
+  .consent__summary,
+  .submit,
+  .done {
+    display: none;
+  }
+
+  .block {
+    break-inside: avoid;
+  }
+}

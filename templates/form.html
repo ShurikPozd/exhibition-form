@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no">
+  <title>Анкета выставки</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <main class="sheet">
+    <header class="sheet__head">
+      <h1 class="sheet__title">Анкета участника выставки</h1>
+      <p class="sheet__lead">Заполните на планшете — это займёт минуту. Все поля со звёздочкой обязательны.</p>
+    </header>
+
+    <form id="lead-form" class="form" novalidate>
+      {% for field in fields %}
+        {% if field.type == 'checkbox_group' %}
+          <fieldset class="block block--checks">
+            <legend class="block__legend">
+              <span class="block__num">{{ field.number }}.</span> {{ field.label }}
+            </legend>
+            {% if field.hint %}<p class="block__hint">{{ field.hint }}</p>{% endif %}
+
+            <div class="checks {% if field.is_columns %}checks--two{% else %}checks--row{% endif %}">
+              {% for column in field.columns %}
+                <div class="checks__col">
+                  {% for option in column %}
+                    {% set option_id = 'f-' ~ field.key ~ '-' ~ loop.index %}
+                    <div class="check">
+                      <input class="check__input" type="checkbox" id="{{ option_id }}"
+                             name="{{ field.key }}" value="{{ option }}">
+                      <label class="check__label" for="{{ option_id }}">{{ option }}</label>
+                      {% if field.other and option == 'другое' %}
+                        <input class="check__other" type="text" name="{{ field.other.key }}"
+                               placeholder="{{ field.other.placeholder }}"
+                               maxlength="{{ field.other.max_length }}"
+                               autocomplete="off">
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endfor %}
+            </div>
+          </fieldset>
+
+        {% elif field.type == 'consent' %}
+          <fieldset class="block block--consent">
+            <div class="check check--consent">
+              <input class="check__input" type="checkbox" id="f-consent" name="consent" value="true">
+              <label class="check__label check__label--consent" for="f-consent">{{ field.label }}</label>
+            </div>
+            <details class="consent">
+              <summary class="consent__summary">Показать текст соглашения</summary>
+              <p class="consent__text">{{ field.consent_text }}</p>
+              <p class="consent__version">Версия согласия: {{ consent_version }}</p>
+            </details>
+          </fieldset>
+
+        {% else %}
+          <div class="block block--field">
+            <label class="block__legend" for="f-{{ field.key }}">
+              <span class="block__num">{{ field.number }}.</span> {{ field.label }}
+              {% if field.required %}<span class="req" aria-hidden="true">*</span>{% endif %}
+            </label>
+            {% if field.type == 'textarea' %}
+              <textarea class="input input--area" id="f-{{ field.key }}" name="{{ field.key }}"
+                        rows="{{ field.rows }}" placeholder="{{ field.placeholder }}"
+                        maxlength="{{ field.max_length }}"></textarea>
+            {% else %}
+              <input class="input" id="f-{{ field.key }}" name="{{ field.key }}" type="text"
+                     placeholder="{{ field.placeholder }}"
+                     {% if field.max_length %}maxlength="{{ field.max_length }}"{% endif %}
+                     {% if field.inputmode %}inputmode="{{ field.inputmode }}"{% endif %}
+                     autocomplete="{{ field.autocomplete or 'off' }}" enterkeyhint="next">
+            {% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+
+      <div class="submit">
+        <button class="btn" type="submit" id="submit-btn">Отправить анкету</button>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+      </div>
+    </form>
+
+    <section class="done" id="done" hidden>
+      <h2 class="done__title">Спасибо!</h2>
+      <p class="done__text">Анкета принята. Мы свяжемся с вами после выставки.</p>
+      <p class="done__id">Номер заявки: <span id="done-id"></span></p>
+      <button class="btn btn--ghost" type="button" id="again">Заполнить ещё одну анкету</button>
+    </section>
+  </main>
+
+  <script src="/static/js/form.js"></script>
+</body>
+</html>

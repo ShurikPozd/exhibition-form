@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Заявки — админка</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .admin { max-width: 1200px; }
+    .admin__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }
+    .admin__bar .btn { min-height: 48px; padding: 10px 20px; font-size: 17px; }
+    .admin__note { margin: 0; color: var(--ink-soft); font-size: 15px; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    th, td { padding: 9px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+    th { background: #f1f4f8; font-weight: 600; white-space: nowrap; }
+    tr:last-child td { border-bottom: 0; }
+    .empty { padding: 26px; color: var(--ink-soft); text-align: center; }
+  </style>
+</head>
+<body>
+  <main class="sheet admin">
+    <header class="sheet__head">
+      <h1 class="sheet__title">Заявки с выставки</h1>
+      <p class="sheet__lead">
+        Всего: {{ total }} · не отправлено в Google: {{ unsynced }} ·
+        синхронизация {{ "включена" if google_enabled else "выключена (нет GOOGLE_SHEET_WEBHOOK_URL)" }} ·
+        обновлено: {{ generated_at }}
+      </p>
+    </header>
+
+    <div class="admin__bar">
+      <a class="btn" id="dl-xlsx" href="/api/submissions.xlsx">Скачать Excel</a>
+      <a class="btn btn--ghost" id="dl-csv" href="/api/submissions.csv">Скачать CSV</a>
+      <button class="btn btn--ghost" id="sync-all" type="button">Повторить отправку в Google</button>
+      <p class="status" id="admin-status" role="status" aria-live="polite"></p>
+    </div>
+
+    {% if rows %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              {% for header in headers %}<th>{{ header }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr>
+                {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">Заявок пока нет — они появятся здесь после первой отправки анкеты.</p>
+    {% endif %}
+  </main>
+
+  <script>
+    /* Токен живёт в адресе (?token=...), поэтому ссылки на выгрузку дополняем им же:
+       иначе скачивание обычной ссылкой получило бы 403. */
+    (function () {
+      "use strict";
+
+      var token = new URLSearchParams(window.location.search).get("token") || "";
+      var status = document.getElementById("admin-status");
+
+      if (token) {
+        ["dl-xlsx", "dl-csv"].forEach(function (id) {
+          var link = document.getElementById(id);
+          link.href = link.getAttribute("href") + "?token=" + encodeURIComponent(token);
+        });
+      }
+
+      function setStatus(text, kind) {
+        status.textContent = text;
+        status.className = kind ? "status status--" + kind : "status";
+      }
+
+      document.getElementById("sync-all").addEventListener("click", function () {
+        setStatus("Отправляем…");
+        fetch("/api/google/sync", {
+          method: "POST",
+          headers: token ? { "X-Export-Token": token } : {},
+        })
+          .then(function (response) {
+            return response.json().then(function (data) {
+              return { ok: response.ok, data: data };
+            });
+          })
+          .then(function (result) {
+            if (!result.ok) {
+              setStatus(result.data.detail || "Не удалось отправить.", "error");
+              return;
+            }
+            setStatus(
+              "Отправлено: " + result.data.sent + ", с ошибкой: " + result.data.failed,
+              "ok"
+            );
+          })
+          .catch(function () {
+            setStatus("Нет связи с сервером.", "error");
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

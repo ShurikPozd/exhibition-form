@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/
+*.log
+# SQLite с заявками и персональными данными — не в репозиторий
+data/
+*.db
+*.db-wal
+*.db-shm
+.vscode/

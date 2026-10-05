@@ -1,0 +1,24 @@
+# Копируется в образ — только то, что нужно приложению в рантайме.
+# Тесты и локальное окружение остаются снаружи: образ меньше, а проверки идут локально
+# или в CI (scripts/check_code.ps1).
+
+.git
+.gitignore
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+tests
+scripts
+data
+logs
+*.log
+*.db
+*.db-wal
+*.db-shm
+.env
+.vscode
+.idea
