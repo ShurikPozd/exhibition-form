@@ -1,19 +1,26 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="format-detection" content="telephone=no">
-  <title>Анкета выставки</title>
+  <title>{{ ui.title }}</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <main class="sheet">
     <header class="sheet__head">
-      <h1 class="sheet__title">Анкета участника выставки</h1>
-      <p class="sheet__lead">Заполните на планшете — это займёт минуту.</p>
-      <p class="sheet__lead sheet__lead--note">Обязательно: имя, телефон или email
-        и согласие на обработку данных. Остальное — по желанию.</p>
+      <nav class="lang" aria-label="{{ ui.lang_switch }}">
+        {% for item in languages %}
+          <a class="lang__link {% if item.code == lang %}lang__link--active{% endif %}"
+             href="{{ request.url_for('show_form') }}?lang={{ item.code }}"
+             hreflang="{{ item.code }}"
+             {% if item.code == lang %}aria-current="true"{% endif %}>{{ item.name }}</a>
+        {% endfor %}
+      </nav>
+      <h1 class="sheet__title">{{ ui.title }}</h1>
+      <p class="sheet__lead">{{ ui.lead }}</p>
+      <p class="sheet__lead sheet__lead--note">{{ ui.lead_note }}</p>
     </header>
 
     <form id="lead-form" class="form" novalidate>
@@ -34,8 +41,8 @@
                     <div class="check">
                       <label class="check__row" for="{{ option_id }}">
                         <input class="check__input" type="checkbox" id="{{ option_id }}"
-                               name="{{ field.key }}" value="{{ option }}">
-                        <span class="check__label">{{ option }}</span>
+                               name="{{ field.key }}" value="{{ option.value }}">
+                        <span class="check__label">{{ option.label }}</span>
                       </label>
                     </div>
                   {% endfor %}
@@ -64,9 +71,9 @@
             </label>
             <p class="hint" id="hint-consent" aria-live="polite"></p>
             <details class="consent">
-              <summary class="consent__summary">Показать текст соглашения</summary>
+              <summary class="consent__summary">{{ ui.consent_show }}</summary>
               <p class="consent__text">{{ field.consent_text }}</p>
-              <p class="consent__version">Версия согласия: {{ consent_version }}</p>
+              <p class="consent__version">{{ ui.consent_version }} {{ consent_version }}</p>
             </details>
           </fieldset>
 
@@ -99,20 +106,21 @@
       {% endfor %}
 
       <div class="submit">
-        <button class="btn" type="submit" id="submit-btn">Отправить анкету</button>
+        <button class="btn" type="submit" id="submit-btn">{{ ui.submit }}</button>
         <p class="status" id="status" role="status" aria-live="polite"></p>
       </div>
     </form>
 
     <section class="done" id="done" hidden>
-      <h2 class="done__title">Спасибо!</h2>
-      <p class="done__text">Анкета принята. Мы свяжемся с вами после выставки.</p>
-      <p class="done__id">Номер заявки: <span id="done-id"></span></p>
+      <h2 class="done__title">{{ ui.done_title }}</h2>
+      <p class="done__text">{{ ui.done_text }}</p>
+      <p class="done__id">{{ ui.done_id }} <span id="done-id"></span></p>
       <p class="done__next" id="done-next"></p>
-      <button class="btn btn--ghost" type="button" id="again">Начать сейчас</button>
+      <button class="btn btn--ghost" type="button" id="again">{{ ui.done_again }}</button>
     </section>
   </main>
 
+  <script id="i18n" type="application/json">{{ i18n_json | safe }}</script>
   <script src="/static/js/form.js"></script>
 </body>
 </html>

@@ -126,7 +126,7 @@ FORM_FIELDS: list[dict[str, Any]] = [
         "required_note": "или укажите email ниже",
         "inputmode": "tel",
         "autocomplete": "tel",
-        "placeholder": "+7 ___ ___-__-__",
+        "placeholder": "+___ ___ ___-__-__",
         "max_length": 40,
     },
     {

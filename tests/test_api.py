@@ -1,5 +1,7 @@
 """Проверки API формы: рендер страницы, приём заявки, чтение из базы и отказы валидации."""
 
+import pytest
+
 from config.consent_text import CONSENT_VERSION
 from models import Submission
 
@@ -99,6 +101,25 @@ def test_short_phone_rejected(client, valid_payload):
     valid_payload["phone"] = "123"
     response = client.post(ENDPOINT, json=valid_payload)
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "phone",
+    ["+375 29 123-45-67", "+49 151 12345678", "+1 202 555 0143", "0037 812 345 678"],
+)
+def test_international_phone_is_stored_as_typed(client, session, valid_payload, phone):
+    """Номер из другой страны принимается и сохраняется ровно как введён.
+
+    Проверяется только количество цифр (10–15 — длина номера по E.164): определить
+    страну без базы стран нельзя, а отклонять номер посетителя нельзя тем более.
+    """
+    valid_payload["phone"] = phone
+    valid_payload["email"] = ""
+    response = client.post(ENDPOINT, json=valid_payload)
+    assert response.status_code == 201
+
+    saved = session.get(Submission, response.json()["id"])
+    assert saved.phone == phone
 
 
 def test_consent_is_required(client, valid_payload):

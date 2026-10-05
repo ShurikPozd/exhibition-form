@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from database import get_session
+from config.i18n import normalize_lang
 from schemas import SubmissionIn, SubmissionOut
 from services import google_sheet
 from services import submissions
@@ -22,11 +23,15 @@ router = APIRouter()
 def show_form(request: Request) -> HTMLResponse:
     """Отдаёт анкету, собранную по описанию полей.
 
+    Язык приходит в ?lang=ru|en; неизвестный код молча превращается в язык по
+    умолчанию, чтобы ссылка с опечаткой не показывала 500.
+
     Raises:
         HTTPException: 500, если нет шаблона (отловлено глобальным обработчиком).
     """
+    lang = normalize_lang(request.query_params.get("lang"))
     return templates.TemplateResponse(
-        request=request, name="form.html", context=build_form_context()
+        request=request, name="form.html", context=build_form_context(lang)
     )
 
 

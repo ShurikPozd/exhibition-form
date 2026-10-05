@@ -64,6 +64,30 @@ body {
   font-size: 15px;
 }
 
+/* Переключатель языка: две ссылки-«таблетки» в правом верхнем углу шапки.
+   Текущий язык помечен, но остаётся ссылкой — так его видно и можно нажать повторно. */
+.lang {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.lang__link {
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.lang__link--active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+
 /* Блоки вопросов */
 .block {
   margin: 0;
@@ -471,6 +495,7 @@ body {
   .block__note,
   .block__hint,
   .consent__summary,
+  .lang,
   .submit,
   .done,
   .status {
