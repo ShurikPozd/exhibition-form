@@ -25,6 +25,18 @@ def test_admin_denied_with_wrong_token(client):
     assert response.json()["detail"] == "Неверный токен доступа к выгрузке."
 
 
+def test_admin_denied_with_non_ascii_token(client):
+    """Токен с не-ASCII символом даёт 403, а не падение на hmac.compare_digest.
+
+    Сравнение строк в compare_digest поддерживает только ASCII: без сравнения байтов
+    русскоязычный токен ронял проверку с TypeError, и посетитель видел 500.
+    """
+    response = client.get("/admin", params={"token": "неправильный"})
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Неверный токен доступа к выгрузке."
+
+
 def test_admin_opens_with_header(client):
     """Верный токен в заголовке открывает список заявок."""
     response = client.get("/admin", headers={"X-Export-Token": TEST_TOKEN})

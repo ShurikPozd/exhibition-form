@@ -37,7 +37,9 @@ def verify_export_token(
         )
 
     provided = x_export_token or token or ""
-    if not hmac.compare_digest(provided, settings.EXPORT_TOKEN):
+    # compare_digest не принимает не-ASCII строки: токен с кириллицей вызвал бы TypeError
+    # и 500 вместо 403. Сравниваем байты UTF-8 — constant time остаётся тем же.
+    if not hmac.compare_digest(provided.encode(), settings.EXPORT_TOKEN.encode()):
         logger.warning("Попытка доступа к выгрузке с неверным токеном")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=TOKEN_INVALID_DETAIL
