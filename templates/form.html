@@ -11,7 +11,9 @@
   <main class="sheet">
     <header class="sheet__head">
       <h1 class="sheet__title">Анкета участника выставки</h1>
-      <p class="sheet__lead">Заполните на планшете — это займёт минуту. Все поля со звёздочкой обязательны.</p>
+      <p class="sheet__lead">Заполните на планшете — это займёт минуту.</p>
+      <p class="sheet__lead sheet__lead--note">Обязательно: имя, телефон или email
+        и согласие на обработку данных. Остальное — по желанию.</p>
     </header>
 
     <form id="lead-form" class="form" novalidate>
@@ -25,32 +27,42 @@
 
             <div class="checks {% if field.is_columns %}checks--two{% else %}checks--row{% endif %}">
               {% for column in field.columns %}
+                {% set column_number = loop.index %}
                 <div class="checks__col">
                   {% for option in column %}
-                    {% set option_id = 'f-' ~ field.key ~ '-' ~ loop.index %}
+                    {% set option_id = 'f-' ~ field.key ~ '-c' ~ column_number ~ '-' ~ loop.index0 %}
                     <div class="check">
-                      <input class="check__input" type="checkbox" id="{{ option_id }}"
-                             name="{{ field.key }}" value="{{ option }}">
-                      <label class="check__label" for="{{ option_id }}">{{ option }}</label>
-                      {% if field.other and option == 'другое' %}
-                        <input class="check__other" type="text" name="{{ field.other.key }}"
-                               placeholder="{{ field.other.placeholder }}"
-                               maxlength="{{ field.other.max_length }}"
-                               autocomplete="off">
-                      {% endif %}
+                      <label class="check__row" for="{{ option_id }}">
+                        <input class="check__input" type="checkbox" id="{{ option_id }}"
+                               name="{{ field.key }}" value="{{ option }}">
+                        <span class="check__label">{{ option }}</span>
+                      </label>
                     </div>
                   {% endfor %}
                 </div>
               {% endfor %}
             </div>
+
+            {% if field.other %}
+              <div class="check-other">
+                <label class="check-other__label" for="f-{{ field.other.key }}">{{ field.other.label }}</label>
+                <input class="check__other" type="text" id="f-{{ field.other.key }}"
+                       name="{{ field.other.key }}" placeholder="{{ field.other.placeholder }}"
+                       maxlength="{{ field.other.max_length }}" autocomplete="off"
+                       aria-describedby="hint-{{ field.other.key }}">
+                <p class="hint" id="hint-{{ field.other.key }}" aria-live="polite"></p>
+              </div>
+            {% endif %}
           </fieldset>
 
         {% elif field.type == 'consent' %}
           <fieldset class="block block--consent">
-            <div class="check check--consent">
+            <label class="check check--consent" for="f-consent">
               <input class="check__input" type="checkbox" id="f-consent" name="consent" value="true">
-              <label class="check__label check__label--consent" for="f-consent">{{ field.label }}</label>
-            </div>
+              <span class="check__label check__label--consent">{{ field.label }}
+                <span class="req" aria-hidden="true">*</span></span>
+            </label>
+            <p class="hint" id="hint-consent" aria-live="polite"></p>
             <details class="consent">
               <summary class="consent__summary">Показать текст соглашения</summary>
               <p class="consent__text">{{ field.consent_text }}</p>
@@ -59,22 +71,29 @@
           </fieldset>
 
         {% else %}
+          {% set marked_required = field.required or field.required_note %}
           <div class="block block--field">
             <label class="block__legend" for="f-{{ field.key }}">
               <span class="block__num">{{ field.number }}.</span> {{ field.label }}
-              {% if field.required %}<span class="req" aria-hidden="true">*</span>{% endif %}
+              {% if marked_required %}<span class="req" aria-hidden="true">*</span>{% endif %}
             </label>
+            {% if field.required_note %}
+              <p class="block__note">{{ field.required_note }}</p>
+            {% endif %}
             {% if field.type == 'textarea' %}
               <textarea class="input input--area" id="f-{{ field.key }}" name="{{ field.key }}"
                         rows="{{ field.rows }}" placeholder="{{ field.placeholder }}"
-                        maxlength="{{ field.max_length }}"></textarea>
+                        maxlength="{{ field.max_length }}"
+                        aria-describedby="hint-{{ field.key }}"></textarea>
             {% else %}
               <input class="input" id="f-{{ field.key }}" name="{{ field.key }}" type="text"
                      placeholder="{{ field.placeholder }}"
                      {% if field.max_length %}maxlength="{{ field.max_length }}"{% endif %}
                      {% if field.inputmode %}inputmode="{{ field.inputmode }}"{% endif %}
+                     aria-describedby="hint-{{ field.key }}"
                      autocomplete="{{ field.autocomplete or 'off' }}" enterkeyhint="next">
             {% endif %}
+            <p class="hint" id="hint-{{ field.key }}" aria-live="polite"></p>
           </div>
         {% endif %}
       {% endfor %}
@@ -89,7 +108,8 @@
       <h2 class="done__title">Спасибо!</h2>
       <p class="done__text">Анкета принята. Мы свяжемся с вами после выставки.</p>
       <p class="done__id">Номер заявки: <span id="done-id"></span></p>
-      <button class="btn btn--ghost" type="button" id="again">Заполнить ещё одну анкету</button>
+      <p class="done__next" id="done-next"></p>
+      <button class="btn btn--ghost" type="button" id="again">Начать сейчас</button>
     </section>
   </main>
 

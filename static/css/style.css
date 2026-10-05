@@ -59,6 +59,11 @@ body {
   font-size: 16px;
 }
 
+.sheet__lead--note {
+  margin-top: 5px;
+  font-size: 15px;
+}
+
 /* Блоки вопросов */
 .block {
   margin: 0;
@@ -83,6 +88,36 @@ body {
   margin: 4px 0 0;
   color: var(--ink-soft);
   font-size: 15px;
+}
+
+.block__note {
+  margin: 2px 0 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+/* Подсказки под полями: появляются при вводе и при проверке */
+.hint {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.hint:empty {
+  display: none;
+}
+
+.hint--info {
+  color: var(--ink-soft);
+}
+
+.hint--error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.hint--ok {
+  color: var(--accent);
 }
 
 .req {
@@ -145,13 +180,28 @@ body {
   gap: 4px;
 }
 
+/* Вариант ответа: строка целиком кликабельна, длинная подпись переносится по словам */
 .check {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.check__row {
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
-  min-height: var(--tap);
-  padding: 2px 0;
+  min-height: 48px;
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: rgba(23, 105, 74, 0.14);
+}
+
+.check__row:hover {
+  background: var(--accent-soft);
 }
 
 .check__input {
@@ -172,16 +222,36 @@ body {
   box-shadow: inset 0 0 0 4px #fff;
 }
 
+.check__input.is-invalid {
+  border-color: var(--danger);
+}
+
 .check__label {
   flex: 1 1 auto;
+  min-width: 0;
+  padding-top: 3px;
   font-size: 17px;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+
+/* Поле уточнения под колонками вариантов: на всю ширину блока, поэтому не зависит
+   от ширины колонки и не может вылезти за край формы. */
+.check-other {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.check-other__label {
+  font-size: 15px;
+  color: var(--ink-soft);
 }
 
 .check__other {
-  flex: 1 1 100%;
   width: 100%;
-  min-height: 46px;
-  margin: 2px 0 6px 42px;
+  min-height: var(--tap);
   padding: 10px 12px;
   font-family: inherit;
   font-size: 17px;
@@ -197,8 +267,25 @@ body {
   outline: 3px solid var(--accent-soft);
 }
 
+.check__other.is-invalid {
+  border-color: var(--danger);
+  background: #fdf3f2;
+}
+
 .check--consent {
+  display: flex;
+  flex-direction: row;
   align-items: flex-start;
+  gap: 12px;
+  margin: 4px -8px 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: rgba(23, 105, 74, 0.14);
+}
+
+.check--consent:hover {
+  background: var(--accent-soft);
 }
 
 .check__label--consent {
@@ -298,6 +385,12 @@ body {
 }
 
 .done__id {
+  margin: 0 0 6px;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+
+.done__next {
   margin: 0 0 26px;
   color: var(--ink-soft);
   font-size: 16px;
@@ -307,6 +400,17 @@ body {
 @media (min-width: 900px) {
   .sheet {
     padding: 34px 40px 42px;
+  }
+}
+
+/* Телефон: две колонки превращаются в одну, иначе подписи и поля сжимаются */
+@media (max-width: 480px) {
+  .sheet {
+    padding: 20px 16px 28px;
+  }
+
+  .checks--two {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -336,9 +440,40 @@ body {
     border-width: 1px;
   }
 
+  /* Чекбоксы печатаются вместе с отметкой выбранного варианта */
+  .check__row {
+    min-height: 0;
+    margin: 0;
+    padding: 2px 0;
+  }
+
+  .check__input {
+    width: 12pt;
+    height: 12pt;
+    border: 1pt solid #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .check__input:checked {
+    background: #000;
+    border-color: #000;
+    box-shadow: none;
+  }
+
+  /* На бланке остаётся подпись «другое» и пустая рамка для вписывания от руки */
+  .check__other {
+    min-height: 0;
+    border-width: 1px;
+  }
+
+  .hint,
+  .block__note,
+  .block__hint,
   .consent__summary,
   .submit,
-  .done {
+  .done,
+  .status {
     display: none;
   }
 

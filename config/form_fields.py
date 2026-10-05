@@ -64,7 +64,8 @@ FORM_FIELDS: list[dict[str, Any]] = [
             ],
         ],
         "other_key": "role_other",
-        "other_placeholder": "Уточните, кто вы",
+        "other_label": "«другое»: уточните, кто вы",
+        "other_placeholder": "например: журналист",
         "other_max_length": 120,
     },
     {
@@ -122,6 +123,7 @@ FORM_FIELDS: list[dict[str, Any]] = [
         "label": "Телефон",
         "type": TEXT,
         "required": False,
+        "required_note": "или укажите email ниже",
         "inputmode": "tel",
         "autocomplete": "tel",
         "placeholder": "+7 ___ ___-__-__",
@@ -133,6 +135,7 @@ FORM_FIELDS: list[dict[str, Any]] = [
         "label": "Email",
         "type": TEXT,
         "required": False,
+        "required_note": "или укажите телефон выше",
         "inputmode": "email",
         "autocomplete": "email",
         "placeholder": "name@example.com",
@@ -193,13 +196,17 @@ def max_length(field: dict[str, Any]) -> int | None:
 
 
 def other_field(field: dict[str, Any]) -> dict[str, Any] | None:
-    """Возвращает описание текстового поля рядом с чекбоксом «другое»."""
+    """Возвращает описание текстового поля рядом с чекбоксом «другое».
+
+    Поле выводится отдельной строкой под колонками вариантов, поэтому подпись в нём
+    обязана быть понятна сама по себе и переводится вместе с остальным текстом.
+    """
     other_key = field.get("other_key")
     if not other_key:
         return None
     return {
         "key": other_key,
-        "label": "Уточните",
+        "label": field.get("other_label", "Уточните"),
         "placeholder": field.get("other_placeholder", ""),
         "max_length": field.get("other_max_length", 120),
     }
