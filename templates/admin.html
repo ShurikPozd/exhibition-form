@@ -12,6 +12,17 @@
     .admin__note { margin: 0; color: var(--ink-soft); font-size: 15px; }
     .admin__hint { color: var(--ink-soft); font-size: 15px; }
     .admin__spacer { margin-left: auto; }
+
+    /* Поиск: поле на всю ширину стенда, кнопки рядом. На телефоне поле занимает
+       отдельную строку — иначе набирать запрос нечем. */
+    .search { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 16px; }
+    .search__input {
+      flex: 1 1 260px; min-height: var(--tap); font-size: 17px; padding: 8px 12px;
+      border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+    }
+    .search__input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .search__found { margin: 0; color: var(--ink-soft); font-size: 15px; }
+
     .empty { padding: 26px; color: var(--ink-soft); text-align: center; }
     .btn-mini {
       min-height: 34px; padding: 4px 12px; font-size: 14px; cursor: pointer;
@@ -67,7 +78,15 @@
     <header class="sheet__head">
       <h1 class="sheet__title">Заявки с выставки</h1>
       <p class="sheet__lead">
-        {% if show_deleted %}
+        {% if query %}
+          Найдено по запросу «{{ query }}»: {{ list_total }} ·
+          {% if show_deleted %}
+            всего скрыто: {{ deleted_total }}
+          {% else %}
+            всего заявок: {{ total }} · скрытых: {{ deleted_total }}
+          {% endif %}
+          · обновлено: {{ generated_at }}
+        {% elif show_deleted %}
           Скрытые заявки: {{ list_total }} · всего скрыто: {{ deleted_total }} ·
           обновлено: {{ generated_at }}
         {% else %}
@@ -76,17 +95,32 @@
       </p>
     </header>
 
+    {# Все ссылки списка несут текущий фильтр: постраничный переход, «Правка» и
+       выгрузка должны возвращать к тому же запросу, а не к общему списку. #}
     {% set hidden_mark = '&show_deleted=true' if show_deleted else '' %}
-    {% set self_url = '/admin?page=' ~ page ~ hidden_mark %}
+    {% set query_mark = ('&query=' ~ query | urlencode) if query else '' %}
+    {% set filter_mark = query_mark ~ hidden_mark %}
+    {% set self_url = '/admin?page=' ~ page ~ filter_mark %}
+
+    <form class="search" method="get" action="/admin" role="search">
+      {% if show_deleted %}<input type="hidden" name="show_deleted" value="true">{% endif %}
+      <input class="search__input" type="search" name="query" value="{{ query }}"
+             placeholder="Имя, компания, телефон, почта или отметка из анкеты" aria-label="Поиск заявки">
+      <button class="btn" type="submit">Найти</button>
+      {% if query %}
+        <a class="btn btn--ghost" href="{{ '/admin?show_deleted=true' if show_deleted else '/admin' }}">Сбросить</a>
+      {% endif %}
+      <noscript><button class="btn-mini" type="submit">ОК</button></noscript>
+    </form>
 
     <div class="admin__bar">
-      <a class="btn" id="dl-xlsx" href="/api/submissions.xlsx">Скачать Excel</a>
-      <a class="btn btn--ghost" id="dl-csv" href="/api/submissions.csv">Скачать CSV</a>
+      <a class="btn" id="dl-xlsx" href="/api/submissions.xlsx{{ export_mark }}">Скачать Excel</a>
+      <a class="btn btn--ghost" id="dl-csv" href="/api/submissions.csv{{ export_mark }}">Скачать CSV</a>
       <p class="admin__note admin__spacer">
         {% if show_deleted %}
-          <a href="/admin">Показать только актуальные</a>
+          <a href="{{ '/admin' ~ query_mark }}">Показать только актуальные</a>
         {% elif deleted_total %}
-          <a href="/admin?show_deleted=true">Показать скрытые ({{ deleted_total }})</a>
+          <a href="/admin?show_deleted=true{{ query_mark }}">Показать скрытые ({{ deleted_total }})</a>
         {% else %}
           <span class="admin__hint">Скрытых заявок нет</span>
         {% endif %}
@@ -142,6 +176,7 @@
       <nav class="pager">
         <form class="pager__size" method="get" action="/admin">
           {% if show_deleted %}<input type="hidden" name="show_deleted" value="true">{% endif %}
+          {% if query %}<input type="hidden" name="query" value="{{ query }}">{% endif %}
           <label for="per-page">Карточек на странице</label>
           <select id="per-page" name="per_page" onchange="this.form.submit()">
             {% for option in per_page_options %}
@@ -153,17 +188,20 @@
         <p class="pager__info">Показано {{ shown_from }}–{{ shown_to }} из {{ list_total }}</p>
         <div class="pager__links">
           {% if page > 1 %}
-            <a class="btn-mini" href="/admin?page={{ page - 1 }}{{ hidden_mark }}">‹ Назад</a>
+            <a class="btn-mini" href="/admin?page={{ page - 1 }}{{ filter_mark }}">‹ Назад</a>
           {% endif %}
           <span class="pager__info">Страница {{ page }} из {{ pages }}</span>
           {% if page < pages %}
-            <a class="btn-mini" href="/admin?page={{ page + 1 }}{{ hidden_mark }}">Вперёд ›</a>
+            <a class="btn-mini" href="/admin?page={{ page + 1 }}{{ filter_mark }}">Вперёд ›</a>
           {% endif %}
         </div>
       </nav>
     {% else %}
       <p class="empty">
-        {% if show_deleted %}
+        {% if query %}
+          По запросу «{{ query }}» ничего не нашлось. Проверьте раскладку или найдите по части
+          телефона.
+        {% elif show_deleted %}
           Скрытых заявок нет.
         {% else %}
           Заявок пока нет — они появятся здесь после первой отправки анкеты.
@@ -174,7 +212,8 @@
 
   <script>
     /* Если админку открыли по ссылке с токеном (?token=...), подставляем его в ссылки
-       на выгрузку: cookie в этом случае может ещё не быть. */
+       на выгрузку: cookie в этом случае может ещё не быть. Знак вопроса выбирается по
+       самой ссылке, потому что у выгрузки с фильтром уже есть свои параметры. */
     (function () {
       "use strict";
 
@@ -183,7 +222,9 @@
       if (token) {
         ["dl-xlsx", "dl-csv"].forEach(function (id) {
           var link = document.getElementById(id);
-          link.href = link.getAttribute("href") + "?token=" + encodeURIComponent(token);
+          var href = link.getAttribute("href");
+          var separator = href.indexOf("?") === -1 ? "?" : "&";
+          link.href = href + separator + "token=" + encodeURIComponent(token);
         });
       }
     })();

@@ -10,6 +10,7 @@
 
 import logging
 from datetime import datetime
+from urllib.parse import urlencode
 
 from fastapi import (
     APIRouter,
@@ -86,6 +87,16 @@ def _not_found() -> HTTPException:
     )
 
 
+def _admin_url(**params: object) -> str:
+    """Собирает адрес админки из параметров: пустые значения в адрес не попадают.
+
+    Так ссылка на список остаётся короткой (`/admin`), а с фильтром — честной
+    (`/admin?query=МКД&show_deleted=true`).
+    """
+    clean = {key: value for key, value in params.items() if value}
+    return f"{ADMIN_PATH}?{urlencode(clean)}" if clean else ADMIN_PATH
+
+
 def _safe_next(value: str, *, default: str) -> str:
     """Оставляет адрес возврата только если он ведёт внутрь админки.
 
@@ -119,6 +130,7 @@ def admin_page(
     show_deleted: bool = False,
     page: str = "",
     per_page: str = "",
+    query: str = "",
     token: str = "",
     x_export_token: str = Header(default=""),
     session: Session = Depends(get_session),
@@ -131,7 +143,8 @@ def admin_page(
     человеку — ссылка.
 
     Ссылка с per_page — это выбор нового размера страницы: он запоминается в cookie и
-    больше не повторяется в адресе.
+    больше не повторяется в адресе. Запрос query ищет заявку по имени, компании, телефону,
+    почте и отмеченным ответам, а кнопки выгрузки отдают ровно то, что видно на экране.
     """
     if not has_session(request.cookies.get(SESSION_COOKIE_NAME)) and not token_matches(
         x_export_token or token
@@ -140,19 +153,33 @@ def admin_page(
 
     if per_page:
         redirect = RedirectResponse(
-            HIDDEN_LIST_PATH if show_deleted else ADMIN_PATH, status_code=303
+            _admin_url(show_deleted="true" if show_deleted else "", query=query),
+            status_code=303,
         )
         redirect.set_cookie(
             **_per_page_cookie(submissions_service.normalize_per_page(per_page))
         )
         return redirect
 
+    search = submissions_service.normalize_query(query)
     chosen_per_page = submissions_service.normalize_per_page(
         request.cookies.get(PER_PAGE_COOKIE_NAME)
     )
     page_data = submissions_service.paginate_submissions(
-        session, page=page, per_page=chosen_per_page, deleted=show_deleted
+        session,
+        page=page,
+        per_page=chosen_per_page,
+        deleted=show_deleted,
+        query=search,
     )
+    export_parts = {}
+    if search:
+        export_parts["query"] = search
+    if show_deleted:
+        export_parts["show_deleted"] = "true"
+    # urlencode превращает и пустое значение в «query=», поэтому непустые параметры
+    # отбираем заранее: без фильтра адрес выгрузки должен остаться прежним.
+    export_query = urlencode(export_parts)
     context = {
         "cards": admin_view.build_cards(page_data["items"]),
         "page": page_data["page"],
@@ -165,6 +192,8 @@ def admin_page(
         "total": submissions_service.count_submissions(session),
         "deleted_total": submissions_service.count_submissions(session, deleted=True),
         "show_deleted": show_deleted,
+        "query": search,
+        "export_mark": f"?{export_query}" if export_query else "",
         "generated_at": datetime.now().strftime(exporters.DATE_FORMAT),
     }
     return templates.TemplateResponse(
@@ -174,20 +203,35 @@ def admin_page(
 
 @router.get("/api/submissions")
 def list_submissions(
+    show_deleted: bool = False,
+    query: str = "",
     session: Session = Depends(get_session),
     _: None = Depends(require_export_access),
 ) -> JSONResponse:
-    """Отдаёт все заявки JSON-таблицей (те же колонки, что и в Excel)."""
-    return _rows_response(submissions_service.list_submissions(session))
+    """Отдаёт заявки JSON-таблицей (те же колонки, что и в Excel).
+
+    Фильтры те же, что и в админке: query ищет по контактам и ответам,
+    show_deleted=true добавляет скрытые заявки.
+    """
+    return _rows_response(
+        submissions_service.list_submissions(session, deleted=show_deleted, query=query)
+    )
 
 
 @router.get("/api/submissions.xlsx")
 def export_xlsx(
+    show_deleted: bool = False,
+    query: str = "",
     session: Session = Depends(get_session),
     _: None = Depends(require_export_access),
 ) -> Response:
-    """Выгружает заявки в .xlsx: листы «Заявки» и «Подробно»."""
-    items = submissions_service.list_submissions(session)
+    """Выгружает заявки в .xlsx: листы «Заявки» и «Подробно».
+
+    С query и show_deleted=true файл содержит ровно то, что показано в админке.
+    """
+    items = submissions_service.list_submissions(
+        session, deleted=show_deleted, query=query
+    )
     content = exporters.to_xlsx(items)
     logger.info("Выгружен .xlsx: заявок %d", len(items))
     return Response(
@@ -203,11 +247,18 @@ def export_xlsx(
 
 @router.get("/api/submissions.csv")
 def export_csv(
+    show_deleted: bool = False,
+    query: str = "",
     session: Session = Depends(get_session),
     _: None = Depends(require_export_access),
 ) -> Response:
-    """Выгружает заявки в CSV (UTF-8 с BOM, разделитель «;»)."""
-    items = submissions_service.list_submissions(session)
+    """Выгружает заявки в CSV (UTF-8 с BOM, разделитель «;»).
+
+    С query и show_deleted=true файл содержит ровно то, что показано в админке.
+    """
+    items = submissions_service.list_submissions(
+        session, deleted=show_deleted, query=query
+    )
     content = exporters.to_csv(items)
     logger.info("Выгружен .csv: заявок %d", len(items))
     return Response(

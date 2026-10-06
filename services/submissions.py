@@ -7,7 +7,7 @@
 
 import logging
 
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from config.consent_text import CONSENT_VERSION
@@ -19,12 +19,22 @@ logger = logging.getLogger(__name__)
 
 LIST_LIMIT = 1000
 ERROR_MAX_LENGTH = 300
+QUERY_MAX_LENGTH = 120
 
 # Размеры страницы в админке: не список произвольных чисел, а несколько предсказуемых
 # вариантов. Человек сразу видит, сколько карточек влезет на экран, и не может случайно
 # выбрать 3000 и получить длинную страницу.
 PER_PAGE_OPTIONS = (10, 20, 50, 100)
 PER_PAGE_DEFAULT = 10
+
+# Колонки, по которым ищет организатор: контакты ищутся в первую очередь, payload
+# разбирается отдельно (см. _search_filter) из-за экранирования кириллицы в JSON.
+_SEARCH_COLUMNS = (
+    Submission.name,
+    Submission.company,
+    Submission.phone,
+    Submission.email,
+)
 
 
 def _deleted_filter(deleted: bool):
@@ -37,6 +47,60 @@ def _deleted_filter(deleted: bool):
     if deleted:
         return Submission.deleted_at.is_not(None)
     return Submission.deleted_at.is_(None)
+
+
+def normalize_query(value: object) -> str:
+    """Приводит поисковый запрос к сравнимой строке: без краёв, с одним пробелом, не длинный.
+
+    Args:
+        value: что пришло из query-параметра — строка или None.
+
+    Returns:
+        str: готовый запрос; пустая строка означает «фильтр не задан».
+    """
+    if value is None:
+        return ""
+    text = " ".join(str(value).split())
+    return text[:QUERY_MAX_LENGTH]
+
+
+def _escape_like(value: str) -> str:
+    """Экранирует спецсимволы LIKE: запрос ищется буквально, а не как шаблон."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _search_filter(query: str):
+    """Условие «похоже на запрос» или None, если запрос пустой.
+
+    Ищется по имени, компании, телефону и почте, а также по тексту payload: заявку с
+    отметкой «МКД» организатор найдёт по слову из ответа, а не только по контактам.
+    Сравнение регистронезависимое — встроенный lower() в SQLite понимает только
+    латиницу, а фамилии у нас кириллицей (см. casefold в database.py). Символы `%` и
+    `_` экранируются: иначе запрос «100%» превратился бы в шаблон LIKE и нашёл бы всё
+    подряд.
+    """
+    if not query:
+        return None
+    pattern = f"%{_escape_like(query.casefold())}%"
+    return or_(
+        *(
+            func.casefold(column).like(pattern, escape="\\")
+            for column in _SEARCH_COLUMNS
+        ),
+        # payload разбирается на настоящие слова функцией json_casefold: в базе JSON
+        # лежит с экранированием кириллицы, и обычное сравнение по строке не видит
+        # в нём ни «МКД», ни «мкд».
+        func.json_casefold(cast(Submission.payload, String)).like(pattern, escape="\\"),
+    )
+
+
+def _list_conditions(deleted: bool, query: str) -> list:
+    """Собирает условия выборки: видимость и, если задан, поиск по запросу."""
+    conditions = [_deleted_filter(deleted)]
+    search = _search_filter(normalize_query(query))
+    if search is not None:
+        conditions.append(search)
+    return conditions
 
 
 def build_payload(data: SubmissionIn) -> dict:
@@ -101,7 +165,7 @@ def create_submission(
 
 
 def list_submissions(
-    session: Session, *, limit: int = LIST_LIMIT, deleted: bool = False
+    session: Session, *, limit: int = LIST_LIMIT, deleted: bool = False, query: str = ""
 ) -> list[Submission]:
     """Возвращает заявки, свежие сверху.
 
@@ -109,18 +173,25 @@ def list_submissions(
         session: сессия SQLAlchemy.
         limit: сколько записей отдать, свежие приходят первыми.
         deleted: брать только скрытые записи (список для восстановления).
+        query: поисковый запрос по контактам и ответам; пустой — без фильтра.
 
     Returns:
         list[Submission]: либо видимые заявки, либо только скрытые — по флагу deleted.
     """
-    stmt = select(Submission).where(_deleted_filter(deleted))
+    stmt = select(Submission).where(*_list_conditions(deleted, query))
     stmt = stmt.order_by(Submission.id.desc()).limit(limit)
     return list(session.scalars(stmt))
 
 
-def count_submissions(session: Session, *, deleted: bool = False) -> int:
-    """Возвращает количество видимых заявок или, при deleted=True, скрытых."""
-    stmt = select(func.count()).select_from(Submission).where(_deleted_filter(deleted))
+def count_submissions(
+    session: Session, *, deleted: bool = False, query: str = ""
+) -> int:
+    """Считает заявки: видимые или скрытые, с учётом поискового запроса."""
+    stmt = (
+        select(func.count())
+        .select_from(Submission)
+        .where(*_list_conditions(deleted, query))
+    )
     return int(session.scalar(stmt) or 0)
 
 
@@ -156,6 +227,7 @@ def paginate_submissions(
     page: object = 1,
     per_page: object = PER_PAGE_DEFAULT,
     deleted: bool = False,
+    query: str = "",
 ) -> dict:
     """Отдаёт одну страницу заявок вместе со счётчиками для пейджера.
 
@@ -167,17 +239,19 @@ def paginate_submissions(
         page: номер страницы, начиная с 1.
         per_page: сколько заявок на странице (нормализуется внутри).
         deleted: брать только скрытые записи (список для восстановления).
+        query: поисковый запрос по контактам и ответам.
 
     Returns:
-        dict: items — заявки страницы, total — сколько их всего, page, per_page,
+        dict: items — заявки страницы, total — сколько их всего по фильтру, page, per_page,
         pages — сколько страниц, shown_from и shown_to — номера показанных записей.
     """
     per_page = normalize_per_page(per_page)
-    total = count_submissions(session, deleted=deleted)
+    conditions = _list_conditions(deleted, query)
+    total = count_submissions(session, deleted=deleted, query=query)
     pages = max(1, -(-total // per_page))
     page = min(normalize_page(page), pages)
 
-    stmt = select(Submission).where(_deleted_filter(deleted))
+    stmt = select(Submission).where(*conditions)
     stmt = stmt.order_by(Submission.id.desc())
     stmt = stmt.limit(per_page).offset((page - 1) * per_page)
     items = list(session.scalars(stmt))

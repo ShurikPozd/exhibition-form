@@ -36,6 +36,11 @@
   (10 / 20 / 50 / 100) и запоминается в cookie, поэтому в ссылках вида `/admin?page=2`
   он не повторяется. Правка, скрытие и восстановление возвращают на ту же страницу,
   откуда пришли.
+- **Поиск по заявкам**: строка поиска над списком находит человека по имени, компании,
+  телефону, почте и по отметке из анкеты («МКД», «SmartHome»). Регистр не важен, хватит
+  части слова, а `%` и `_` ищутся буквально, а не как шаблон. Запрос остаётся в адресе:
+  страницы пейджера, кнопка «Правка» и обе кнопки выгрузки несут его с собой, поэтому
+  скачивается ровно то, что видно на экране.
 - **Заметка в выгрузке**: заметка попадает последней колонкой «Заметка» в Excel и CSV, чтобы
   видеть её рядом с заявкой. На листе «Подробно» её нет.
 - **Два способа доступа**: кроме сессии есть `EXPORT_TOKEN` — по нему открываются только
@@ -227,16 +232,16 @@ python -m pytest tests\test_backup.py  # 25 тестов: дамп, ротаци
 | `GET /` | анкета; `?lang=en` — английская версия | открыто |
 | `POST /api/submissions` | принять заявку (JSON) | открыто |
 | `GET /healthz` | проверка живости | открыто |
-| `GET /admin` | страница карточек заявок (`?page=`, `?per_page=`, `?show_deleted=`) и ссылки на выгрузку | сессия или `EXPORT_TOKEN` |
+| `GET /admin` | страница карточек заявок (`?page=`, `?per_page=`, `?show_deleted=`, `?query=`) и ссылки на выгрузку | сессия или `EXPORT_TOKEN` |
 | `GET /admin/login`, `POST /admin/login` | вход по `ADMIN_PASSWORD` | открыто |
 | `GET /admin/logout` | выход из админки | открыто |
 | `GET /admin/submissions/{id}/edit` | форма правки заявки | сессия |
 | `POST /admin/submissions/{id}/edit` | сохранить контакты и заметку | сессия |
 | `POST /admin/submissions/{id}/delete` | скрыть заявку из списка и выгрузок | сессия |
 | `POST /admin/submissions/{id}/restore` | вернуть скрытую заявку | сессия |
-| `GET /api/submissions` | заявки JSON-таблицей | сессия или `EXPORT_TOKEN` |
-| `GET /api/submissions.xlsx` | Excel с заявками | сессия или `EXPORT_TOKEN` |
-| `GET /api/submissions.csv` | CSV с заявками | сессия или `EXPORT_TOKEN` |
+| `GET /api/submissions` | заявки JSON-таблицей (`?query=`, `?show_deleted=`) | сессия или `EXPORT_TOKEN` |
+| `GET /api/submissions.xlsx` | Excel с заявками (`?query=`, `?show_deleted=`) | сессия или `EXPORT_TOKEN` |
+| `GET /api/submissions.csv` | CSV с заявками (`?query=`, `?show_deleted=`) | сессия или `EXPORT_TOKEN` |
 | `GET /api/docs` | автодокументация OpenAPI | открыто |
 
 ## Как устроено
@@ -247,11 +252,12 @@ config/             описание анкеты и переводы — еди
   form_fields.py    поля анкеты: из него строятся форма, валидация и колонки выгрузки
   i18n.py           переключение языка по ?lang=
   translations/     ru.py, en.py — все тексты интерфейса
-database.py         подключение к SQLite и создание таблиц
+database.py         подключение к SQLite, создание таблиц и функции casefold/json_casefold
+                     для поиска без учёта регистра кириллицы
 models.py           таблица submissions
 schemas.py          валидация входящих данных (Pydantic v2)
 handlers/           HTTP-маршруты: form.py (анкета), auth.py (вход/выход),
-                    admin.py (список, правка, скрытие и выгрузка)
+                     admin.py (список, поиск, правка, скрытие и выгрузка)
 services/           бизнес-логика: submissions.py (запись и постраничная выборка),
                     exporters.py (Excel/CSV), form_view.py (сборка формы для шаблона),
                     admin_view.py (карточка заявки для админки),
@@ -260,8 +266,9 @@ templates/          form.html, admin.html, edit.html, login.html
 static/             css/style.css, js/form.js (маска телефона, автосброс, черновик)
 utils/              security.py (сессия и токен), session.py (подпись cookie),
                      masking.py (маскирование в логах), validators.py
-tests/              171 тест: поля, API, доступ и сессии, правка и скрытие, карточки
-                     и пагинация админки, выгрузка, резервные копии, языки, маскирование
+tests/              196 тестов: поля, API, доступ и сессии, правка и скрытие, карточки
+                     и пагинация админки, поиск и фильтрованная выгрузка, резервные копии,
+                     языки, маскирование
 ```
 
 Логика намеренно разделена: `config/form_fields.py` описывает поля один раз, из него
@@ -292,7 +299,7 @@ tests/              171 тест: поля, API, доступ и сессии, �
 ## Тесты и качество
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest        # 171 тест
+.\.venv\Scripts\python.exe -m pytest        # 196 тестов
 .\.venv\Scripts\python.exe -m flake8 .      # стиль
 .\.venv\Scripts\python.exe -m black --check .  # форматирование
 powershell -File scripts\check_code.ps1     # всё вместе
