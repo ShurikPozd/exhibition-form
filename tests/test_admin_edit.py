@@ -162,6 +162,50 @@ def test_deleted_submission_visible_with_flag(auth_client, created_id):
     assert "Вернуть" in listing.text
 
 
+def test_hidden_flag_shows_only_deleted(auth_client, created_id, client, valid_payload):
+    """Список скрытых не должен содержать видимые заявки.
+
+    Регрессия: под надписью «Показать скрытые» показывались все записи разом, и у каждой
+    была кнопка «Вернуть», которой нечего было вернуть.
+    """
+    other_id = _create_another(client, valid_payload, name="Вторая заявка")
+
+    auth_client.post(f"/admin/submissions/{created_id}/delete", follow_redirects=False)
+
+    listing = auth_client.get("/admin?show_deleted=true")
+
+    assert "Иван Петров" in listing.text
+    assert "Вторая заявка" not in listing.text
+    assert listing.text.count("Вернуть") == 1
+    assert f"/admin/submissions/{other_id}/restore" not in listing.text
+
+
+def test_hidden_count_shows_only_deleted(
+    auth_client, client, created_id, valid_payload
+):
+    """Счётчик «скрытых» считает именно скрытые записи, а не все."""
+    _create_another(client, valid_payload, name="Вторая заявка")
+
+    listing = auth_client.get("/admin")
+
+    assert "скрытых: 0" in listing.text
+    assert "Скрытых заявок нет" in listing.text
+
+    auth_client.post(f"/admin/submissions/{created_id}/delete", follow_redirects=False)
+
+    listing = auth_client.get("/admin")
+
+    assert "скрытых: 1" in listing.text
+    assert "Показать скрытые (1)" in listing.text
+
+
+def _create_another(client, payload: dict, *, name: str) -> int:
+    """Отправляет вторую валидную заявку и возвращает её id."""
+    response = client.post("/api/submissions", json={**payload, "name": name})
+    assert response.status_code == 201, response.text
+    return int(response.json()["id"])
+
+
 def test_restore_brings_submission_back(auth_client, created_id):
     """Восстановление возвращает запись в список и выгрузки."""
     auth_client.post(f"/admin/submissions/{created_id}/delete", follow_redirects=False)

@@ -21,6 +21,18 @@ LIST_LIMIT = 1000
 ERROR_MAX_LENGTH = 300
 
 
+def _deleted_filter(deleted: bool):
+    """Условие «видимые» или «скрытые»: списки в админке не должны смешиваться.
+
+    Список скрытых показывает только скрытые записи, а обычный — только видимые: иначе
+    под надписью «Показать скрытые» оказывались бы все заявки сразу, а у каждой ещё и
+    кнопка «Вернуть», которой нечего вернуть.
+    """
+    if deleted:
+        return Submission.deleted_at.is_not(None)
+    return Submission.deleted_at.is_(None)
+
+
 def build_payload(data: SubmissionIn) -> dict:
     """Собирает payload заявки: группы чекбоксов и свободный текст."""
     return {
@@ -83,30 +95,26 @@ def create_submission(
 
 
 def list_submissions(
-    session: Session, *, limit: int = LIST_LIMIT, include_deleted: bool = False
+    session: Session, *, limit: int = LIST_LIMIT, deleted: bool = False
 ) -> list[Submission]:
     """Возвращает заявки, свежие сверху.
 
     Args:
         session: сессия SQLAlchemy.
         limit: сколько записей отдать, свежие приходят первыми.
-        include_deleted: показывать ли скрытые записи (восстановление в админке).
+        deleted: брать только скрытые записи (список для восстановления).
 
     Returns:
-        list[Submission]: заявки по убыванию id.
+        list[Submission]: либо видимые заявки, либо только скрытые — по флагу deleted.
     """
-    stmt = select(Submission)
-    if not include_deleted:
-        stmt = stmt.where(Submission.deleted_at.is_(None))
+    stmt = select(Submission).where(_deleted_filter(deleted))
     stmt = stmt.order_by(Submission.id.desc()).limit(limit)
     return list(session.scalars(stmt))
 
 
-def count_submissions(session: Session, *, include_deleted: bool = False) -> int:
-    """Возвращает количество заявок (скрытые не считаются, если не сказано иначе)."""
-    stmt = select(func.count()).select_from(Submission)
-    if not include_deleted:
-        stmt = stmt.where(Submission.deleted_at.is_(None))
+def count_submissions(session: Session, *, deleted: bool = False) -> int:
+    """Возвращает количество видимых заявок или, при deleted=True, скрытых."""
+    stmt = select(func.count()).select_from(Submission).where(_deleted_filter(deleted))
     return int(session.scalar(stmt) or 0)
 
 

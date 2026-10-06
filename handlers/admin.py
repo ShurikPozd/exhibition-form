@@ -87,14 +87,12 @@ def admin_page(
     ):
         return _admin_redirect()
 
-    items = submissions_service.list_submissions(session, include_deleted=show_deleted)
+    items = submissions_service.list_submissions(session, deleted=show_deleted)
     context = {
         "headers": exporters.headers(),
         "rows": exporters.rows(items),
         "total": submissions_service.count_submissions(session),
-        "deleted_total": submissions_service.count_submissions(
-            session, include_deleted=True
-        ),
+        "deleted_total": submissions_service.count_submissions(session, deleted=True),
         "show_deleted": show_deleted,
         "generated_at": datetime.now().strftime(exporters.DATE_FORMAT),
     }
