@@ -18,6 +18,7 @@ from pydantic import (
 
 from config.consent_text import CONSENT_VERSION
 from config.form_fields import checkbox_options, field_by_key, max_length
+from models import NOTE_MAX_LENGTH as NOTE_MAX
 from utils import validators
 
 
@@ -106,6 +107,47 @@ class SubmissionIn(BaseModel):
         return self
 
 
+class SubmissionEditIn(BaseModel):
+    """Правка заявки из админки: контакты и заметка организатора.
+
+    Ответы посетителя (отметки чекбоксов, свободный текст) здесь не меняются: согласие
+    подписывалось под тем составом полей, который видел человек на стенде.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    name: str = Field(..., max_length=NAME_MAX, description="Имя")
+    company: str = Field("", max_length=COMPANY_MAX, description="Компания")
+    phone: str = Field("", max_length=PHONE_MAX, description="Телефон")
+    email: str = Field("", max_length=EMAIL_MAX, description="Email")
+    note: str = Field("", max_length=NOTE_MAX, description="Заметка")
+
+    @field_validator("name")
+    @classmethod
+    def _check_name(cls, value: str) -> str:
+        """Имя обязательно и должно содержать хотя бы один символ."""
+        return validators.validate_name(value)
+
+    @field_validator("phone")
+    @classmethod
+    def _check_phone(cls, value: str) -> str:
+        """Проверяет количество цифр в телефоне."""
+        return validators.validate_phone(value)
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, value: str) -> str:
+        """Проверяет адрес почты, если он заполнен."""
+        return validators.validate_email(value)
+
+    @model_validator(mode="after")
+    def _check_contacts(self) -> "SubmissionEditIn":
+        """Как и на анкете: без телефона и почты заявку не с кем связать."""
+        if not (self.phone or self.email):
+            raise ValueError("оставьте телефон или email, чтобы мы могли вам ответить")
+        return self
+
+
 class SubmissionOut(BaseModel):
     """Ответ на успешную отправку.
 
@@ -121,6 +163,7 @@ class SubmissionOut(BaseModel):
 
 __all__ = [
     "SubmissionIn",
+    "SubmissionEditIn",
     "SubmissionOut",
     "CONSENT_VERSION",
     "AFTER_SHOW_MAX",

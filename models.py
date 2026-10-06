@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
 
+NOTE_MAX_LENGTH = 1000
+
 
 def utcnow() -> datetime:
     """Возвращает текущее время UTC без tzinfo — так SQLite хранит его единообразно."""
@@ -36,3 +38,14 @@ class Submission(Base):
 
     consent_version: Mapped[str] = mapped_column(String(32), default="")
     user_agent: Mapped[str] = mapped_column(String(300), default="")
+
+    # Заметка организатора: правится в админке и уходит в выгрузку последней колонкой.
+    note: Mapped[str] = mapped_column(String(NOTE_MAX_LENGTH), default="")
+    # Мягкое удаление: строка остаётся в базе, но скрыта из админки и выгрузок,
+    # поэтому ошибочно скрытую заявку можно вернуть, а данные посетителя не пропадают.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None, index=True
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
+    )

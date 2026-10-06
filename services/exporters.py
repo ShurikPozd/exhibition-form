@@ -38,14 +38,21 @@ MODEL_COLUMNS = {"name", "company", "phone", "email"}
 
 ID_HEADER = "№"
 DATE_HEADER = "Дата и время"
+NOTE_HEADER = "Заметка"
 DETAIL_HEADERS = [ID_HEADER, DATE_HEADER, "Вопрос", "Вариант"]
 
 
 def headers() -> list[str]:
-    """Возвращает заголовки колонок в порядке анкеты."""
-    return [ID_HEADER, DATE_HEADER] + [
-        field.get("export_title", field["label"]) for field in FORM_FIELDS
-    ]
+    """Возвращает заголовки колонок в порядке анкеты, затем колонка заметок.
+
+    Заметка организатора идёт последней: анкетные колонки повторяют порядок полей
+    (config/form_fields.py) и не должны сдвигаться, если служебные колонки меняются.
+    """
+    return (
+        [ID_HEADER, DATE_HEADER]
+        + [field.get("export_title", field["label"]) for field in FORM_FIELDS]
+        + [NOTE_HEADER]
+    )
 
 
 def selected_options(payload: dict, field: dict) -> list[str]:
@@ -105,6 +112,7 @@ def rows(items: list) -> list[list[str]]:
             submission.created_at.strftime(DATE_FORMAT),
         ]
         row.extend(cell_value(submission, field) for field in FORM_FIELDS)
+        row.append(str(submission.note or "").strip()[:VALUE_MAX_LENGTH])
         result.append(row)
     return result
 

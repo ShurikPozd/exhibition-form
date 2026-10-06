@@ -23,13 +23,14 @@ def headers_index(header: str) -> int:
 
 
 def test_headers_follow_form_order(session, valid_payload):
-    """Колонки идут в порядке анкеты: №, дата и время, затем поля формы."""
+    """Колонки идут в порядке анкеты: №, дата и время, поля формы и заметка последней."""
     headers = exporters.headers()
     assert headers[0] == "№"
     assert headers[1] == "Дата и время"
-    assert len(headers) == len(FORM_FIELDS) + 2
+    assert len(headers) == len(FORM_FIELDS) + 3
     assert "Имя" in headers
     assert "Согласие ПДн" in headers
+    assert headers[-1] == "Заметка"
 
 
 def test_row_contains_values(session, valid_payload):

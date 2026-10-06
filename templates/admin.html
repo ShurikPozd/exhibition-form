@@ -10,12 +10,22 @@
     .admin__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }
     .admin__bar .btn { min-height: 48px; padding: 10px 20px; font-size: 17px; }
     .admin__note { margin: 0; color: var(--ink-soft); font-size: 15px; }
+    .admin__spacer { margin-left: auto; }
     .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
     table { width: 100%; border-collapse: collapse; font-size: 15px; }
     th, td { padding: 9px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
     th { background: #f1f4f8; font-weight: 600; white-space: nowrap; }
     tr:last-child td { border-bottom: 0; }
     .empty { padding: 26px; color: var(--ink-soft); text-align: center; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; white-space: nowrap; }
+    .actions form { margin: 0; }
+    .btn-mini {
+      min-height: 34px; padding: 4px 12px; font-size: 14px; cursor: pointer;
+      border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink);
+    }
+    .btn-mini--danger { color: #a02020; border-color: #f0c4c4; }
+    .btn-mini--ok { color: #1c6b3a; border-color: #bfe0cb; }
+    tr.row--deleted td { background: #fbf7f7; color: var(--ink-soft); }
   </style>
 </head>
 <body>
@@ -23,13 +33,21 @@
     <header class="sheet__head">
       <h1 class="sheet__title">Заявки с выставки</h1>
       <p class="sheet__lead">
-        Всего: {{ total }} · обновлено: {{ generated_at }}
+        Всего: {{ total }} · скрытых: {{ deleted_total }} · обновлено: {{ generated_at }}
       </p>
     </header>
 
     <div class="admin__bar">
       <a class="btn" id="dl-xlsx" href="/api/submissions.xlsx">Скачать Excel</a>
       <a class="btn btn--ghost" id="dl-csv" href="/api/submissions.csv">Скачать CSV</a>
+      <p class="admin__note admin__spacer">
+        {% if show_deleted %}
+          <a href="/admin">Показать только актуальные</a>
+        {% else %}
+          <a href="/admin?show_deleted=true">Показать скрытые</a>
+        {% endif %}
+      </p>
+      <a class="btn-mini" href="/admin/logout">Выйти</a>
     </div>
 
     {% if rows %}
@@ -38,12 +56,28 @@
           <thead>
             <tr>
               {% for header in headers %}<th>{{ header }}</th>{% endfor %}
+              <th>Действия</th>
             </tr>
           </thead>
           <tbody>
             {% for row in rows %}
-              <tr>
+              <tr class="{% if show_deleted %}row--deleted{% endif %}">
                 {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+                <td>
+                  <div class="actions">
+                    <a class="btn-mini" href="/admin/submissions/{{ row[0] }}/edit">Правка</a>
+                    {% if show_deleted %}
+                      <form method="post" action="/admin/submissions/{{ row[0] }}/restore">
+                        <button class="btn-mini btn-mini--ok" type="submit">Вернуть</button>
+                      </form>
+                    {% else %}
+                      <form method="post" action="/admin/submissions/{{ row[0] }}/delete"
+                            onsubmit="return confirm('Скрыть заявку №{{ row[0] }}? Запись останется в базе, её можно вернуть.');">
+                        <button class="btn-mini btn-mini--danger" type="submit">Скрыть</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
               </tr>
             {% endfor %}
           </tbody>
@@ -55,8 +89,8 @@
   </main>
 
   <script>
-    /* Токен живёт в адресе (?token=...), поэтому ссылки на выгрузку дополняем им же:
-       иначе скачивание обычной ссылкой получило бы 403. */
+    /* Если админку открыли по ссылке с токеном (?token=...), подставляем его в ссылки
+       на выгрузку: cookie в этом случае может ещё не быть. */
     (function () {
       "use strict";
 

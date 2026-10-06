@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 import logger_config  # noqa: F401  (настройка логов происходит при импорте)
 import settings
 from database import init_db
-from handlers import admin, form
+from handlers import admin, auth, form
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     """Готовит схему БД при старте и пишет в лог, куда смотреть."""
     init_db()
     logger.info("Приложение запущено: http://%s:%s", settings.HOST, settings.PORT)
-    logger.info("Анкета: /   Админка и выгрузка: /admin (нужен EXPORT_TOKEN)")
+    logger.info("Анкета: /   Админка: /admin (вход по ADMIN_PASSWORD на /admin/login)")
     yield
     logger.info("Приложение остановлено")
 
@@ -40,6 +40,7 @@ app = FastAPI(
 
 app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
 app.include_router(form.router)
+app.include_router(auth.router)
 app.include_router(admin.router)
 
 

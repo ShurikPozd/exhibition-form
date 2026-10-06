@@ -11,8 +11,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from config.consent_text import CONSENT_VERSION
-from models import Submission
-from schemas import SubmissionIn
+from models import Submission, utcnow
+from schemas import SubmissionEditIn, SubmissionIn
 from utils.masking import mask_email, mask_phone
 
 logger = logging.getLogger(__name__)
@@ -82,20 +82,97 @@ def create_submission(
     return saved
 
 
-def list_submissions(session: Session, *, limit: int = LIST_LIMIT) -> list[Submission]:
+def list_submissions(
+    session: Session, *, limit: int = LIST_LIMIT, include_deleted: bool = False
+) -> list[Submission]:
     """Возвращает заявки, свежие сверху.
 
     Args:
         session: сессия SQLAlchemy.
         limit: сколько записей отдать, свежие приходят первыми.
+        include_deleted: показывать ли скрытые записи (восстановление в админке).
 
     Returns:
         list[Submission]: заявки по убыванию id.
     """
-    stmt = select(Submission).order_by(Submission.id.desc()).limit(limit)
+    stmt = select(Submission)
+    if not include_deleted:
+        stmt = stmt.where(Submission.deleted_at.is_(None))
+    stmt = stmt.order_by(Submission.id.desc()).limit(limit)
     return list(session.scalars(stmt))
 
 
-def count_submissions(session: Session) -> int:
-    """Возвращает общее количество заявок."""
-    return int(session.scalar(select(func.count()).select_from(Submission)) or 0)
+def count_submissions(session: Session, *, include_deleted: bool = False) -> int:
+    """Возвращает количество заявок (скрытые не считаются, если не сказано иначе)."""
+    stmt = select(func.count()).select_from(Submission)
+    if not include_deleted:
+        stmt = stmt.where(Submission.deleted_at.is_(None))
+    return int(session.scalar(stmt) or 0)
+
+
+def get_submission(session: Session, submission_id: int) -> Submission | None:
+    """Возвращает заявку по id или None."""
+    return session.get(Submission, submission_id)
+
+
+def update_contacts(
+    session: Session, submission_id: int, data: SubmissionEditIn
+) -> Submission | None:
+    """Правит контакты и заметку заявки, не трогая ответы посетителя.
+
+    Returns:
+        Submission | None: обновлённая запись, перечитанная после commit,
+        либо None, если заявки с таким id нет.
+    """
+    submission = get_submission(session, submission_id)
+    if submission is None:
+        return None
+
+    submission.name = data.name
+    submission.company = data.company
+    submission.phone = data.phone
+    submission.email = data.email
+    submission.note = data.note
+    submission.updated_at = utcnow()
+    session.commit()
+
+    saved = get_submission(session, submission_id)
+    if saved is None:
+        session.rollback()
+        logger.error("Заявка #%s не читается после правки", submission_id)
+        raise RuntimeError("не удалось подтвердить правку заявки")
+
+    logger.info("Изменены контакты и заметка заявки #%s", submission_id)
+    return saved
+
+
+def soft_delete(session: Session, submission_id: int) -> Submission | None:
+    """Прячет заявку из админки и выгрузок, оставляя её в базе.
+
+    Returns:
+        Submission | None: скрытая запись либо None, если заявки нет.
+    """
+    submission = get_submission(session, submission_id)
+    if submission is None:
+        return None
+
+    submission.deleted_at = utcnow()
+    session.commit()
+    logger.info("Заявка #%s скрыта из админки и выгрузок", submission_id)
+    return submission
+
+
+def restore(session: Session, submission_id: int) -> Submission | None:
+    """Возвращает скрытую заявку в админку и выгрузки.
+
+    Returns:
+        Submission | None: восстановленная запись либо None, если заявки нет.
+    """
+    submission = get_submission(session, submission_id)
+    if submission is None:
+        return None
+
+    submission.deleted_at = None
+    session.commit()
+    logger.info("Заявка #%s восстановлена", submission_id)
+    return submission

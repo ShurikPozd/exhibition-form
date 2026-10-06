@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вход — Анкета выставки</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    body { display: grid; place-items: center; min-height: 100vh; margin: 0; }
+    .login { width: min(420px, 92vw); }
+    .login__card {
+      background: var(--surface, #fff);
+      border: 1px solid var(--line, #d8dde5);
+      border-radius: var(--radius, 12px);
+      padding: 28px 24px;
+      box-shadow: 0 8px 24px rgba(16, 24, 40, .06);
+    }
+    .login__title { margin: 0 0 4px; font-size: 22px; }
+    .login__lead { margin: 0 0 20px; color: var(--ink-soft, #5b6472); font-size: 15px; }
+    .login__label { display: block; margin-bottom: 6px; font-size: 15px; }
+    .login__input {
+      width: 100%; min-height: 48px; padding: 10px 14px;
+      font-size: 17px; border: 1px solid var(--line, #d8dde5); border-radius: 8px;
+      box-sizing: border-box;
+    }
+    .login__btn {
+      width: 100%; min-height: 48px; margin-top: 16px; font-size: 17px;
+      border: 0; border-radius: 8px; background: var(--accent, #2f6feb); color: #fff;
+      cursor: pointer;
+    }
+    .login__error {
+      margin: 0 0 16px; padding: 10px 12px; border-radius: 8px;
+      background: #fdecec; color: #a02020; font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <main class="login">
+    <div class="login__card">
+      <h1 class="login__title">Админка заявок</h1>
+      <p class="login__lead">Введите пароль из файла <code>.env</code> (переменная ADMIN_PASSWORD).</p>
+
+      {% if error %}
+        <p class="login__error" role="alert">{{ error }}</p>
+      {% endif %}
+
+      <form method="post" action="/admin/login">
+        <label class="login__label" for="password">Пароль</label>
+        <input
+          class="login__input"
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          autofocus
+          required>
+        <button class="login__btn" type="submit">Войти</button>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

@@ -17,9 +17,13 @@ REQUIRED_KEYS = ["name", "phone", "email"]
 HINT_KEYS = ["name", "phone", "email", "consent"]
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def page(client):
-    """Отрисованная анкета: html одного запроса, общий для всех проверок модуля."""
+    """Отрисованная анкета: html одного запроса.
+
+    Область — функциональная, как и у клиента: один TestClient на тест не даёт cookie
+    и данным утекать между тестами (иначе проверки «без доступа» проходят по чужой сессии).
+    """
     response = client.get("/")
     assert response.status_code == 200
     return response.text

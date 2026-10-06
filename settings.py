@@ -1,7 +1,7 @@
 """Конфигурация приложения: читает переменные окружения из .env и проверяет их.
 
 Экспортирует пути (DATA_DIR, DATABASE_URL), параметры запуска (HOST, PORT), настройки
-защищённой выгрузки (EXPORT_TOKEN) и реквизиты оператора персональных данных.
+доступа к админке (ADMIN_PASSWORD, EXPORT_TOKEN) и реквизиты оператора персональных данных.
 
 Отсутствующие значения не роняют импорт модуля, а логируются предупреждением: приложение
 должно запуститься даже с пустым .env — тогда защищённые ручки честно отдают 403 с
@@ -20,6 +20,14 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    """Читает булеву переменную окружения (1/true/yes/on)."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _env_int(name: str, default: int) -> int:
@@ -44,6 +52,14 @@ DATABASE_URL = os.getenv("DATABASE_URL") or f"sqlite:///{DB_PATH}"
 
 EXPORT_TOKEN = os.getenv("EXPORT_TOKEN") or None
 
+# Пароль для входа в админку через форму. В отличие от EXPORT_TOKEN его вводит
+# человек, поэтому задаётся читаемой строкой в .env, а подпись сессии делается на нём же.
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD") or None
+SESSION_TTL_HOURS = _env_int("SESSION_TTL_HOURS", 8)
+# Secure-флаг cookie обязателен на HTTPS, но на http://127.0.0.1 он запрещает cookie,
+# поэтому по умолчанию выключен и включается в .env при публикации наружу.
+SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
+
 CONSENT_OPERATOR_NAME = os.getenv("CONSENT_OPERATOR_NAME", "организатор выставки")
 CONSENT_OPERATOR_EMAIL = os.getenv("CONSENT_OPERATOR_EMAIL", "")
 CONSENT_OPERATOR_ADDRESS = os.getenv("CONSENT_OPERATOR_ADDRESS", "")
@@ -54,6 +70,13 @@ if not EXPORT_TOKEN:
     )
 else:
     logger.debug("EXPORT_TOKEN загружен")
+
+if not ADMIN_PASSWORD:
+    logger.warning(
+        "ADMIN_PASSWORD не задан — форма входа /admin/login объяснит, что его нужно задать."
+    )
+else:
+    logger.debug("ADMIN_PASSWORD загружен")
 
 if not CONSENT_OPERATOR_NAME:
     logger.warning("CONSENT_OPERATOR_NAME не задан — в тексте согласия будет заглушка.")
