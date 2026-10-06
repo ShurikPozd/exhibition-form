@@ -1,5 +1,7 @@
 # Анкета участника выставки
 
+[![CI](https://github.com/ShurikPozd/exhibition-form/actions/workflows/ci.yml/badge.svg)](https://github.com/ShurikPozd/exhibition-form/actions/workflows/ci.yml)
+
 Веб-приложение для сбора заявок на выставке: посетитель заполняет анкету на iPad прямо на
 стенде, организатор после выставки скачивает **Excel** или **CSV**.
 
@@ -91,6 +93,37 @@ docker compose logs -f form
   заявки переживают обновление приложения. Бэкап — `docker cp exhibition-form:/app/data/submissions.db ./backup.db`.
 - Приложение работает от непривилегированного пользователя, порт 8000 пробрасывается наружу.
 - `/healthz` отвечает `{"status":"ok"}` — по нему видно, что процесс жив, а не просто порт открыт.
+
+## Развёртывание на Render
+
+Сервис уже развёрнут: <https://exhibition-form.onrender.com> · админка — `/admin`.
+
+```powershell
+# Создать сервис из этого репозитория (Docker определяется автоматически)
+& "$env:USERPROFILE\bin\render.exe" services create `
+    --name exhibition-form --repo ShurikPozd/exhibition-form `
+    --branch main --plan free --region frankfurt --type web --no-commit
+
+# Посмотреть состояние и логи
+& "$env:USERPROFILE\bin\render.exe" services list
+& "$env:USERPROFILE\bin\render.exe" logs -r srv-xxxxxxxx -o json
+```
+
+Конфигурация сервиса описана в [`render.yaml`](render.yaml): план `free`, регион `frankfurt`,
+автодеплой из `main`, health check `/healthz`. Секреты в этот файл не попадают — их задают
+в переменных окружения сервиса.
+
+### Что нужно знать про бесплатный план
+
+- **Файловая система эфемерная.** Заявки лежат в SQLite внутри контейнера, и при рестарте
+  или засыпании сервиса контейнер заменяется на новый — файл с базой пропадает. Поэтому
+  бэкапы обязательны (см. «Резервные копии»), а простая проверка через UptimeRobot
+  (раз в 5 минут по `/healthz`) не даёт сервису уснуть.
+- **Засыпание после 15 минут простоя**, подъём около минуты. Пока сервис не спит, он занимает
+  бесплатные часы (750 в месяц) — это весь лимит тарифа, второй постоянно включённый
+  сервис в него не влезет.
+- **Docker-деплой**: Render сам находит `Dockerfile` в корне, отдельно ничего настраивать
+  не нужно.
 
 ## Переменные окружения
 

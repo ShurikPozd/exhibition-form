@@ -1,0 +1,32 @@
+# Описание сервиса на Render (Blueprint schema).
+#
+# Этот файл — эталон настройки: сервис создаётся из этого же репозитория
+# командой render.exe, а render.yaml позволяет потом воспроизвести конфигурацию
+# из репозитория одной кнопкой в дашборде.
+#
+# Секреты здесь отсутствуют намеренно и не должны появляться: EXPORT_TOKEN,
+# ADMIN_PASSWORD и BACKUP_TOKEN задаются в переменных окружения сервиса
+# (Render → Environment) и в git не попадают.
+
+services:
+  - type: web
+    name: exhibition-form
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /healthz
+
+    envVars:
+      # Значения без секретов — их можно держать в репозитории.
+      - key: LOG_LEVEL
+        value: INFO
+      # Render отдаёт HTTPS, поэтому cookie сессии админки идёт с флагом Secure.
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: SESSION_TTL_HOURS
+        value: "8"
+      - key: DATA_DIR
+        value: /app/data
+      # Реквизиты оператора персональных данных подставляются при настройке сервиса.
