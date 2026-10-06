@@ -108,18 +108,40 @@ docker compose logs -f form
 
 ## Развёртывание на Render
 
-Сервис уже развёрнут: <https://exhibition-form.onrender.com> · админка — `/admin`.
+Сервис уже развёрнут: <https://exhibition-form-qj5n.onrender.com> · админка — `/admin`.
+Имя `exhibition-form` в адресе Render оказалось занято другим сервисом, поэтому к адресу
+добавлен суффикс `-qj5n`; в render.yaml и при создании сервиса имя остаётся
+`exhibition-form`.
 
 ```powershell
-# Создать сервис из этого репозитория (Docker определяется автоматически)
-& "$env:USERPROFILE\bin\render.exe" services create `
-    --name exhibition-form --repo ShurikPozd/exhibition-form `
-    --branch main --plan free --region frankfurt --type web --no-commit
+# Ключ API лежит в переменной окружения RENDER_API_KEY, а сам render.exe ходит наружу
+# только через прокси: без HTTPS_PROXY api.render.com из России не отвечает.
+$env:HTTPS_PROXY = "socks5h://127.0.0.1:10808"
 
-# Посмотреть состояние и логи
+# Создать сервис из этого репозитория (Docker определяется автоматически)
+& "$env:USERPROFILE\bin\render.exe" services create --confirm `
+    --name exhibition-form --repo https://github.com/ShurikPozd/exhibition-form `
+    --type web_service --runtime docker --plan free --region frankfurt `
+    --branch main --health-check-path /healthz `
+    --env-var LOG_LEVEL=INFO `
+    --env-var SESSION_COOKIE_SECURE=true `
+    --env-var SESSION_TTL_HOURS=8 `
+    --env-var DATA_DIR=/app/data `
+    --env-var BACKUP_REPO=ShurikPozd/exhibition-form-backups `
+    --env-var BACKUP_PATH=backups/submissions.db.gz `
+    --env-var ADMIN_PASSWORD=... `
+    --env-var EXPORT_TOKEN=... `
+    --env-var CONSENT_OPERATOR_NAME=... `
+    --env-var CONSENT_OPERATOR_EMAIL=... `
+    --env-var CONSENT_OPERATOR_ADDRESS=...
+
+# Состояние сервисов и логи (логи требуют --resources)
 & "$env:USERPROFILE\bin\render.exe" services list
-& "$env:USERPROFILE\bin\render.exe" logs -r srv-xxxxxxxx -o json
+& "$env:USERPROFILE\bin\render.exe" logs -r srv-xxxxxxxx --limit 50
 ```
+
+Обрати внимание: значение `PORT` задавать не нужно — Render подставляет 10000, и
+Dockerfile поднимает uvicorn именно на этом порте.
 
 Конфигурация сервиса описана в [`render.yaml`](render.yaml): план `free`, регион `frankfurt`,
 автодеплой из `main`, health check `/healthz`. Секреты в этот файл не попадают — их задают
