@@ -15,6 +15,12 @@ def test_healthz(client):
     assert response.json() == {"status": "ok"}
 
 
+def test_healthz_accepts_head(client):
+    """UptimeRobot проверяет монитором HEAD — он должен давать 200, а не 405."""
+    response = client.head("/healthz")
+    assert response.status_code == 200
+
+
 def test_form_page_renders(client):
     """Главная отдаёт анкету со всеми блоками и подписями."""
     response = client.get("/")

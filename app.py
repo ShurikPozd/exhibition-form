@@ -84,7 +84,7 @@ app.include_router(auth.router)
 app.include_router(admin.router)
 
 
-@app.get("/healthz", tags=["service"])
+@app.api_route("/healthz", methods=["GET", "HEAD"], tags=["service"])
 def healthz() -> dict[str, str]:
     """Healthcheck для Docker и внешнего мониторинга."""
     return {"status": "ok"}
