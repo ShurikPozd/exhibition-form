@@ -2,14 +2,15 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
+import settings
 from database import get_session
 from config.i18n import normalize_lang
 from schemas import SubmissionIn, SubmissionOut
-from services import submissions
+from services import backup, submissions
 from services.form_view import build_form_context
 from templating import templates
 
@@ -42,15 +43,23 @@ def show_form(request: Request) -> HTMLResponse:
 def submit_submission(
     data: SubmissionIn,
     request: Request,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ) -> SubmissionOut:
     """Принимает заявку, сохраняет в SQLite и подтверждает запись чтением обратно.
 
     Ошибки валидации Pydantic превращаются в 422 автоматически: посетитель увидит
     текст problem, а в базу ничего не попадёт.
+
+    После ответа посетителю в фоне снимается дамп базы: на Render контейнер может быть
+    пересоздан в любой момент, и копия должна появиться раньше, чем её попросит
+    следующая заявка.
     """
     submission = submissions.create_submission(
         session, data, user_agent=request.headers.get("user-agent", "")
     )
+
+    if settings.BACKUP_ON_SUBMIT:
+        background_tasks.add_task(backup.run_backup, "после заявки")
 
     return SubmissionOut(id=submission.id, created_at=submission.created_at)

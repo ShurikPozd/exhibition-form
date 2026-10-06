@@ -6,3 +6,6 @@ python-dotenv==1.2.4
 Jinja2==3.1.6
 openpyxl==3.1.5
 python-multipart==0.0.20
+# Выгрузка резервных копий в репозиторий GitHub. Тот же пакет нужен тестам:
+# fastapi.testclient работает поверх httpx.
+httpx==0.28.1

@@ -17,6 +17,10 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DIR / 'test_submissions.db'}"
 os.environ["EXPORT_TOKEN"] = TEST_TOKEN
 os.environ["ADMIN_PASSWORD"] = TEST_ADMIN_PASSWORD
 os.environ["LOG_LEVEL"] = "WARNING"
+# Дампы бэкапов пишем во временный каталог, а не в рабочую data/, и отключаем
+# фоновый цикл по расписанию: в тестах нужен только запуск по заявке.
+os.environ["BACKUP_DIR"] = str(_TMP_DIR / "backup")
+os.environ["BACKUP_INTERVAL_HOURS"] = "0"
 
 import pytest  # noqa: E402  (импорт после подмены переменных окружения)
 from fastapi.testclient import TestClient  # noqa: E402

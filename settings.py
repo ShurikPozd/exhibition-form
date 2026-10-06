@@ -60,6 +60,19 @@ SESSION_TTL_HOURS = _env_int("SESSION_TTL_HOURS", 8)
 # поэтому по умолчанию выключен и включается в .env при публикации наружу.
 SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
 
+# --- Резервные копии базы ---
+# Дампы всегда пишутся в BACKUP_DIR; выгрузка в репозиторий GitHub включается только
+# когда заданы BACKUP_REPO и BACKUP_TOKEN. Токен — fine-grained PAT с правом
+# Contents: Read and write на репозиторий с копиями.
+BACKUP_DIR = os.getenv("BACKUP_DIR") or os.path.join(DATA_DIR, "backup")
+BACKUP_KEEP = _env_int("BACKUP_KEEP", 14)
+BACKUP_ON_SUBMIT = _env_bool("BACKUP_ON_SUBMIT", True)
+BACKUP_INTERVAL_HOURS = _env_int("BACKUP_INTERVAL_HOURS", 6)
+BACKUP_REPO = os.getenv("BACKUP_REPO") or None
+BACKUP_TOKEN = os.getenv("BACKUP_TOKEN") or None
+BACKUP_PATH = os.getenv("BACKUP_PATH") or "backups/submissions.db.gz"
+BACKUP_BRANCH = os.getenv("BACKUP_BRANCH", "main")
+
 CONSENT_OPERATOR_NAME = os.getenv("CONSENT_OPERATOR_NAME", "организатор выставки")
 CONSENT_OPERATOR_EMAIL = os.getenv("CONSENT_OPERATOR_EMAIL", "")
 CONSENT_OPERATOR_ADDRESS = os.getenv("CONSENT_OPERATOR_ADDRESS", "")

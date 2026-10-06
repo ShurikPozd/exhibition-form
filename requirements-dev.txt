@@ -1,6 +1,6 @@
 -r requirements.txt
-# httpx нужен только тестам: fastapi.testclient работает поверх него
-httpx==0.28.1
+# httpx приходит из requirements.txt: он нужен и выгрузке бэкапов в репозиторий,
+# и тестам (fastapi.testclient работает поверх него).
 black==26.10.0
 flake8==7.4.1
 pytest==9.1.1
