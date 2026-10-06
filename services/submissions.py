@@ -20,6 +20,12 @@ logger = logging.getLogger(__name__)
 LIST_LIMIT = 1000
 ERROR_MAX_LENGTH = 300
 
+# Размеры страницы в админке: не список произвольных чисел, а несколько предсказуемых
+# вариантов. Человек сразу видит, сколько карточек влезет на экран, и не может случайно
+# выбрать 3000 и получить длинную страницу.
+PER_PAGE_OPTIONS = (10, 20, 50, 100)
+PER_PAGE_DEFAULT = 10
+
 
 def _deleted_filter(deleted: bool):
     """Условие «видимые» или «скрытые»: списки в админке не должны смешиваться.
@@ -116,6 +122,76 @@ def count_submissions(session: Session, *, deleted: bool = False) -> int:
     """Возвращает количество видимых заявок или, при deleted=True, скрытых."""
     stmt = select(func.count()).select_from(Submission).where(_deleted_filter(deleted))
     return int(session.scalar(stmt) or 0)
+
+
+def normalize_per_page(value: object) -> int:
+    """Приводит значение из адреса или cookie к размеру страницы.
+
+    Args:
+        value: что пришло из query-параметра или cookie — строка, число или None.
+
+    Returns:
+        int: одно из PER_PAGE_OPTIONS; всё остальное (мусор, «0», «13») — размер
+        по умолчанию, чтобы испорченная ссылка не ломала страницу.
+    """
+    try:
+        number = int(str(value))
+    except (TypeError, ValueError):
+        return PER_PAGE_DEFAULT
+    return number if number in PER_PAGE_OPTIONS else PER_PAGE_DEFAULT
+
+
+def normalize_page(value: object) -> int:
+    """Приводит значение из адреса к номеру страницы, начиная с 1."""
+    try:
+        number = int(str(value))
+    except (TypeError, ValueError):
+        return 1
+    return number if number > 0 else 1
+
+
+def paginate_submissions(
+    session: Session,
+    *,
+    page: object = 1,
+    per_page: object = PER_PAGE_DEFAULT,
+    deleted: bool = False,
+) -> dict:
+    """Отдаёт одну страницу заявок вместе со счётчиками для пейджера.
+
+    Страница за пределами диапазона не считается ошибкой: показывается ближайшая
+    существующая, чтобы ссылка из истории браузера не приводила к пустому экрану.
+
+    Args:
+        session: сессия SQLAlchemy.
+        page: номер страницы, начиная с 1.
+        per_page: сколько заявок на странице (нормализуется внутри).
+        deleted: брать только скрытые записи (список для восстановления).
+
+    Returns:
+        dict: items — заявки страницы, total — сколько их всего, page, per_page,
+        pages — сколько страниц, shown_from и shown_to — номера показанных записей.
+    """
+    per_page = normalize_per_page(per_page)
+    total = count_submissions(session, deleted=deleted)
+    pages = max(1, -(-total // per_page))
+    page = min(normalize_page(page), pages)
+
+    stmt = select(Submission).where(_deleted_filter(deleted))
+    stmt = stmt.order_by(Submission.id.desc())
+    stmt = stmt.limit(per_page).offset((page - 1) * per_page)
+    items = list(session.scalars(stmt))
+
+    shown_from = (page - 1) * per_page + 1 if items else 0
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": pages,
+        "shown_from": shown_from,
+        "shown_to": shown_from + len(items) - 1 if items else 0,
+    }
 
 
 def get_submission(session: Session, submission_id: int) -> Submission | None:

@@ -54,6 +54,7 @@
       {% endif %}
 
       <form method="post" action="/admin/submissions/{{ submission.id }}/edit">
+        <input type="hidden" name="next" value="{{ back_to }}">
         <label class="edit__label" for="name">Имя</label>
         <input class="edit__input" id="name" name="name" required maxlength="120"
                value="{{ form.name if form.name is defined else submission.name }}">
@@ -78,7 +79,7 @@
 
         <div class="edit__bar">
           <button class="btn" type="submit">Сохранить</button>
-          <a class="btn btn--ghost" href="/admin">Отмена</a>
+          <a class="btn btn--ghost" href="{{ back_to }}">Отмена</a>
         </div>
       </form>
     </div>

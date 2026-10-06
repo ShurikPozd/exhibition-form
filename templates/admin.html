@@ -6,27 +6,60 @@
   <title>Заявки — админка</title>
   <link rel="stylesheet" href="/static/css/style.css">
   <style>
-    .admin { max-width: 1200px; }
+    .admin { max-width: 1280px; }
     .admin__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }
     .admin__bar .btn { min-height: 48px; padding: 10px 20px; font-size: 17px; }
     .admin__note { margin: 0; color: var(--ink-soft); font-size: 15px; }
     .admin__hint { color: var(--ink-soft); font-size: 15px; }
     .admin__spacer { margin-left: auto; }
-    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
-    table { width: 100%; border-collapse: collapse; font-size: 15px; }
-    th, td { padding: 9px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
-    th { background: #f1f4f8; font-weight: 600; white-space: nowrap; }
-    tr:last-child td { border-bottom: 0; }
     .empty { padding: 26px; color: var(--ink-soft); text-align: center; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; white-space: nowrap; }
-    .actions form { margin: 0; }
     .btn-mini {
       min-height: 34px; padding: 4px 12px; font-size: 14px; cursor: pointer;
       border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink);
     }
     .btn-mini--danger { color: #a02020; border-color: #f0c4c4; }
     .btn-mini--ok { color: #1c6b3a; border-color: #bfe0cb; }
-    tr.row--deleted td { background: #fbf7f7; color: var(--ink-soft); }
+
+    /* Карточки вместо таблицы: в анкете десять полей, и таблица из 13 колонок не
+       помещалась по ширине — приходилось листать вправо. Здесь одна колонка на
+       телефоне, две на планшете, три на широком экране. */
+    .cards { display: grid; gap: 12px; grid-template-columns: 1fr; }
+    @media (min-width: 760px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (min-width: 1180px) { .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    .card {
+      border: 1px solid var(--line); border-radius: var(--radius); padding: 14px;
+      background: #fff; overflow-wrap: anywhere;
+    }
+    .card--deleted { background: #fbf7f7; border-color: #f0dcd7; }
+    .card__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
+    .card__head form { margin: 0; }
+    .card__id { font-weight: 600; }
+    .card__date { color: var(--ink-soft); font-size: 14px; }
+    .card__spacer { margin-left: auto; }
+    .card__name { margin: 0; font-size: 18px; line-height: 1.25; }
+    .card__company { margin: 2px 0 0; color: var(--ink-soft); }
+    .card__contacts { margin: 6px 0 0; }
+    .card__answers {
+      margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--line);
+      display: grid; gap: 8px;
+    }
+    .card__answer { display: grid; gap: 2px; }
+    @media (min-width: 560px) {
+      .card__answer { grid-template-columns: minmax(120px, 36%) 1fr; gap: 10px; }
+    }
+    .card__answer dt { color: var(--ink-soft); font-size: 14px; }
+    .card__answer dd { margin: 0; }
+    .card__note { margin: 10px 0 0; padding: 8px 10px; background: #f6f7f9; border-radius: 8px; font-size: 15px; }
+    .card__note span { display: block; color: var(--ink-soft); font-size: 13px; }
+
+    .pager { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }
+    .pager__info { margin: 0; color: var(--ink-soft); font-size: 15px; }
+    .pager__links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: auto; }
+    .pager__size { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 15px; }
+    .pager__size select {
+      min-height: var(--tap); font-size: 16px; padding: 4px 10px;
+      border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+    }
   </style>
 </head>
 <body>
@@ -35,13 +68,16 @@
       <h1 class="sheet__title">Заявки с выставки</h1>
       <p class="sheet__lead">
         {% if show_deleted %}
-          Скрытые заявки: {{ rows | length }} · всего скрыто: {{ deleted_total }} ·
+          Скрытые заявки: {{ list_total }} · всего скрыто: {{ deleted_total }} ·
           обновлено: {{ generated_at }}
         {% else %}
           Всего: {{ total }} · скрытых: {{ deleted_total }} · обновлено: {{ generated_at }}
         {% endif %}
       </p>
     </header>
+
+    {% set hidden_mark = '&show_deleted=true' if show_deleted else '' %}
+    {% set self_url = '/admin?page=' ~ page ~ hidden_mark %}
 
     <div class="admin__bar">
       <a class="btn" id="dl-xlsx" href="/api/submissions.xlsx">Скачать Excel</a>
@@ -58,41 +94,81 @@
       <a class="btn-mini" href="/admin/logout">Выйти</a>
     </div>
 
-    {% if rows %}
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              {% for header in headers %}<th>{{ header }}</th>{% endfor %}
-              <th>Действия</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in rows %}
-              <tr class="{% if show_deleted %}row--deleted{% endif %}">
-                {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
-                <td>
-                  <div class="actions">
-                    <a class="btn-mini" href="/admin/submissions/{{ row[0] }}/edit">Правка</a>
-                    {% if show_deleted %}
-                      <form method="post" action="/admin/submissions/{{ row[0] }}/restore">
-                        <button class="btn-mini btn-mini--ok" type="submit">Вернуть</button>
-                      </form>
-                    {% else %}
-                      <form method="post" action="/admin/submissions/{{ row[0] }}/delete"
-                            onsubmit="return confirm('Скрыть заявку №{{ row[0] }}? Запись останется в базе, её можно вернуть.');">
-                        <button class="btn-mini btn-mini--danger" type="submit">Скрыть</button>
-                      </form>
-                    {% endif %}
+    {% if cards %}
+      <div class="cards">
+        {% for card in cards %}
+          <article class="card {% if card.deleted %}card--deleted{% endif %}">
+            <header class="card__head">
+              <span class="card__id">№{{ card.id }}</span>
+              <span class="card__date">{{ card.date }}</span>
+              <span class="card__spacer"></span>
+              <a class="btn-mini" href="/admin/submissions/{{ card.id }}/edit?next={{ self_url | urlencode }}">Правка</a>
+              {% if card.deleted %}
+                <form method="post" action="/admin/submissions/{{ card.id }}/restore">
+                  <input type="hidden" name="next" value="{{ self_url }}">
+                  <button class="btn-mini btn-mini--ok" type="submit">Вернуть</button>
+                </form>
+              {% else %}
+                <form method="post" action="/admin/submissions/{{ card.id }}/delete"
+                      onsubmit="return confirm('Скрыть заявку №{{ card.id }}? Запись останется в базе, её можно вернуть.');">
+                  <input type="hidden" name="next" value="{{ self_url }}">
+                  <button class="btn-mini btn-mini--danger" type="submit">Скрыть</button>
+                </form>
+              {% endif %}
+            </header>
+
+            <h2 class="card__name">{{ card.name }}</h2>
+            {% if card.company %}<p class="card__company">{{ card.company }}</p>{% endif %}
+            {% if card.contacts %}<p class="card__contacts">{{ card.contacts }}</p>{% endif %}
+
+            {% if card.answers %}
+              <dl class="card__answers">
+                {% for answer in card.answers %}
+                  <div class="card__answer">
+                    <dt>{{ answer.label }}</dt>
+                    <dd>{{ answer.value }}</dd>
                   </div>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+                {% endfor %}
+              </dl>
+            {% endif %}
+
+            {% if card.note %}
+              <p class="card__note"><span>Заметка</span>{{ card.note }}</p>
+            {% endif %}
+          </article>
+        {% endfor %}
       </div>
+
+      <nav class="pager">
+        <form class="pager__size" method="get" action="/admin">
+          {% if show_deleted %}<input type="hidden" name="show_deleted" value="true">{% endif %}
+          <label for="per-page">Карточек на странице</label>
+          <select id="per-page" name="per_page" onchange="this.form.submit()">
+            {% for option in per_page_options %}
+              <option value="{{ option }}" {% if option == per_page %}selected{% endif %}>{{ option }}</option>
+            {% endfor %}
+          </select>
+          <noscript><button class="btn-mini" type="submit">ОК</button></noscript>
+        </form>
+        <p class="pager__info">Показано {{ shown_from }}–{{ shown_to }} из {{ list_total }}</p>
+        <div class="pager__links">
+          {% if page > 1 %}
+            <a class="btn-mini" href="/admin?page={{ page - 1 }}{{ hidden_mark }}">‹ Назад</a>
+          {% endif %}
+          <span class="pager__info">Страница {{ page }} из {{ pages }}</span>
+          {% if page < pages %}
+            <a class="btn-mini" href="/admin?page={{ page + 1 }}{{ hidden_mark }}">Вперёд ›</a>
+          {% endif %}
+        </div>
+      </nav>
     {% else %}
-      <p class="empty">Заявок пока нет — они появятся здесь после первой отправки анкеты.</p>
+      <p class="empty">
+        {% if show_deleted %}
+          Скрытых заявок нет.
+        {% else %}
+          Заявок пока нет — они появятся здесь после первой отправки анкеты.
+        {% endif %}
+      </p>
     {% endif %}
   </main>
 

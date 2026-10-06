@@ -11,7 +11,16 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Form, Header, HTTPException, Request, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Form,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
 from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
@@ -21,9 +30,11 @@ from fastapi.responses import (
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+import settings
 from database import get_session
 from handlers.auth import LOGIN_PATH
 from schemas import SubmissionEditIn
+from services import admin_view
 from services import exporters
 from services import submissions as submissions_service
 from templating import templates
@@ -40,8 +51,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 ADMIN_PATH = "/admin"
+HIDDEN_LIST_PATH = f"{ADMIN_PATH}?show_deleted=true"
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 CSV_MEDIA_TYPE = "text/csv; charset=utf-8"
+
+# Размер страницы хранится в cookie, а не в каждой ссылке: выбор один раз сделанный
+# действует дальше сам, и адрес остаётся коротким (/admin?page=3). Cookie не секрет —
+# это удобство просмотра, поэтому подписывать её не нужно, но флаги защиты те же, что
+# у сессии.
+PER_PAGE_COOKIE_NAME = "admin_per_page"
+PER_PAGE_COOKIE_MAX_AGE = 180 * 24 * 60 * 60
 
 
 def _rows_response(items: list) -> JSONResponse:
@@ -67,30 +86,82 @@ def _not_found() -> HTTPException:
     )
 
 
+def _safe_next(value: str, *, default: str) -> str:
+    """Оставляет адрес возврата только если он ведёт внутрь админки.
+
+    Адрес приходит из формы, значит из браузера: подсунуть можно что угодно, поэтому
+    принимается только сам /admin или путь с его вопросительной частью. Внешний адрес
+    и перевод строки в заголовке ответа отсекаются.
+    """
+    if not value or "\n" in value or "\r" in value:
+        return default
+    if value != ADMIN_PATH and not value.startswith(f"{ADMIN_PATH}?"):
+        return default
+    return value
+
+
+def _per_page_cookie(value: int) -> dict:
+    """Параметры cookie с выбранным размером страницы."""
+    return {
+        "key": PER_PAGE_COOKIE_NAME,
+        "value": str(value),
+        "max_age": PER_PAGE_COOKIE_MAX_AGE,
+        "httponly": True,
+        "samesite": "lax",
+        "secure": settings.SESSION_COOKIE_SECURE,
+        "path": ADMIN_PATH,
+    }
+
+
 @router.get("/admin", response_class=HTMLResponse, response_model=None)
 def admin_page(
     request: Request,
     show_deleted: bool = False,
+    page: str = "",
+    per_page: str = "",
     token: str = "",
     x_export_token: str = Header(default=""),
     session: Session = Depends(get_session),
 ) -> HTMLResponse | RedirectResponse:
-    """Показывает страницу со списком заявок и кнопками выгрузки.
+    """Показывает страницу карточек заявок и кнопки выгрузки.
 
     Без сессии и без верного токена — не 403, а переход на форму входа: ссылку на
     /admin можно открывать прямо из закладок, не дописывая к ней токен руками.
     Токен принимается и в заголовке, и в адресе: скриптам удобнее заголовок,
     человеку — ссылка.
+
+    Ссылка с per_page — это выбор нового размера страницы: он запоминается в cookie и
+    больше не повторяется в адресе.
     """
     if not has_session(request.cookies.get(SESSION_COOKIE_NAME)) and not token_matches(
         x_export_token or token
     ):
         return _admin_redirect()
 
-    items = submissions_service.list_submissions(session, deleted=show_deleted)
+    if per_page:
+        redirect = RedirectResponse(
+            HIDDEN_LIST_PATH if show_deleted else ADMIN_PATH, status_code=303
+        )
+        redirect.set_cookie(
+            **_per_page_cookie(submissions_service.normalize_per_page(per_page))
+        )
+        return redirect
+
+    chosen_per_page = submissions_service.normalize_per_page(
+        request.cookies.get(PER_PAGE_COOKIE_NAME)
+    )
+    page_data = submissions_service.paginate_submissions(
+        session, page=page, per_page=chosen_per_page, deleted=show_deleted
+    )
     context = {
-        "headers": exporters.headers(),
-        "rows": exporters.rows(items),
+        "cards": admin_view.build_cards(page_data["items"]),
+        "page": page_data["page"],
+        "pages": page_data["pages"],
+        "per_page": page_data["per_page"],
+        "per_page_options": submissions_service.PER_PAGE_OPTIONS,
+        "shown_from": page_data["shown_from"],
+        "shown_to": page_data["shown_to"],
+        "list_total": page_data["total"],
         "total": submissions_service.count_submissions(session),
         "deleted_total": submissions_service.count_submissions(session, deleted=True),
         "show_deleted": show_deleted,
@@ -154,6 +225,7 @@ def export_csv(
 def edit_page(
     request: Request,
     submission_id: int,
+    next_url: str = Query(default="", alias="next"),
     session: Session = Depends(get_session),
     _: None = Depends(require_session),
 ) -> HTMLResponse:
@@ -170,6 +242,7 @@ def edit_page(
             "form": {},
             "error": "",
             "back_to_deleted": submission.deleted_at is not None,
+            "back_to": _safe_next(next_url, default=ADMIN_PATH),
         },
     )
 
@@ -183,13 +256,15 @@ def edit_submit(
     phone: str = Form(default=""),
     email: str = Form(default=""),
     note: str = Form(default=""),
+    next_url: str = Form(default="", alias="next"),
     session: Session = Depends(get_session),
     _: None = Depends(require_session),
 ) -> HTMLResponse | RedirectResponse:
     """Сохраняет правку и возвращает в админку.
 
     Returns:
-        RedirectResponse: 303 в админку с сохранёнными данными.
+        RedirectResponse: 303 в админку с сохранёнными данными — на ту же страницу
+        списка, откуда пришли, если адрес передан формой.
         HTMLResponse: та же форма с текстом ошибки, если данные не прошли проверку.
     """
     form = {
@@ -199,6 +274,7 @@ def edit_submit(
         "email": email,
         "note": note,
     }
+    back_to = _safe_next(next_url, default=ADMIN_PATH)
     submission = submissions_service.get_submission(session, submission_id)
     if submission is None:
         raise _not_found()
@@ -214,6 +290,7 @@ def edit_submit(
                 "form": form,
                 "error": "; ".join(str(item["msg"]) for item in error.errors()),
                 "back_to_deleted": submission.deleted_at is not None,
+                "back_to": back_to,
             },
         )
 
@@ -221,28 +298,32 @@ def edit_submit(
     if updated is None:
         raise _not_found()
 
-    return RedirectResponse(ADMIN_PATH, status_code=303)
+    return RedirectResponse(back_to, status_code=303)
 
 
 @router.post("/admin/submissions/{submission_id}/delete")
 def delete_submission(
     submission_id: int,
+    next_url: str = Form(default="", alias="next"),
     session: Session = Depends(get_session),
     _: None = Depends(require_session),
 ) -> RedirectResponse:
     """Прячет заявку из админки и выгрузок."""
     if submissions_service.soft_delete(session, submission_id) is None:
         raise _not_found()
-    return RedirectResponse(ADMIN_PATH, status_code=303)
+    return RedirectResponse(_safe_next(next_url, default=ADMIN_PATH), status_code=303)
 
 
 @router.post("/admin/submissions/{submission_id}/restore")
 def restore_submission(
     submission_id: int,
+    next_url: str = Form(default="", alias="next"),
     session: Session = Depends(get_session),
     _: None = Depends(require_session),
 ) -> RedirectResponse:
     """Возвращает скрытую заявку в админку и выгрузки."""
     if submissions_service.restore(session, submission_id) is None:
         raise _not_found()
-    return RedirectResponse(f"{ADMIN_PATH}?show_deleted=true", status_code=303)
+    return RedirectResponse(
+        _safe_next(next_url, default=HIDDEN_LIST_PATH), status_code=303
+    )
